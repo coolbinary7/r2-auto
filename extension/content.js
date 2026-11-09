@@ -363,6 +363,31 @@
     }) || null;
   }
 
+  // Dernière release de l'artiste dans l'arbre : « Titre | UPC | Artiste(s) | Config »
+  function scanArtistReleases(artist, excludeTitle) {
+    const a = norm(artist);
+    const out = [];
+    for (const el of document.querySelectorAll('[id^="digital_"][id$="_text"]')) {
+      const parts = txt(el).split('|').map(x => x.trim());
+      if (parts.length < 3) continue;
+      const title = parts[0], artists = parts[2];
+      const names = artists.split(/\s*(?:,|&|\/|\bfeat\.?|\bft\.?|\sx\s)\s*/i).map(norm).filter(Boolean);
+      const main = names[0] === a, any = names.includes(a);
+      if (!any) continue;
+      if (/\[copy\]/i.test(title) || (excludeTitle && norm(title) === norm(excludeTitle))) continue;
+      const id = +((el.id.match(/digital_(\d+)/) || [])[1] || 0);
+      out.push({ el, td: el.closest('td') || el, title, artists, upc: parts[1], id, main });
+    }
+    // les sorties où l'artiste est l'artiste principal d'abord, puis la plus récente
+    return out.sort((x, y) => (y.main - x.main) || (y.id - x.id));
+  }
+
+  async function findLatestArtistRelease(artist, excludeTitle) {
+    let list = scanArtistReleases(artist, excludeTitle);
+    if (!list.length) { await expandFolder(/^RELEASES\s*\(\d+\)/i); list = scanArtistReleases(artist, excludeTitle); }
+    return list[0] || null;
+  }
+
   async function contextCopy(node) {
     const target = node.querySelector('div,span') || node;
     target.scrollIntoView({ block: 'center' });
@@ -459,10 +484,32 @@
       if (screen() !== name && !(await waitScreen(name, 8000))) throw new Error('écran attendu non affiché');
     };
 
-    // 1. Copie de la release de référence
+    // 1. Copie de la release de référence : la dernière sortie de l'artiste dans le projet ouvert
     if (screen() !== 'copyRelease') {
-      const r = await pause('Clic droit sur la dernière release de l’artiste → Copy. Je prends la suite dès que la fenêtre s’ouvre.', () => screen() === 'copyRelease');
-      if (r === 'stop') throw new Error('arrêté à ta demande');
+      say(`1/6 · Recherche de la dernière sortie de ${job.artist}…`);
+      let model = await findLatestArtistRelease(job.artist, job.title);
+      if (model) {
+        say(`1/6 · Modèle trouvé : « ${model.title} » (${model.artists}). Copie…`);
+        await sleep(1200);
+        await contextCopy(model.td);
+        await waitScreen('copyRelease', 8000);
+      }
+      if (screen() !== 'copyRelease') {
+        const r = await pause(model
+          ? `Je n’ai pas réussi à copier « ${model.title} ». Fais clic droit dessus → Copy, je prends la suite.`
+          : `Pas de sortie de « ${job.artist} » dans le projet ouvert. Ouvre le projet du label de l’artiste : je la repère et je continue (ou fais clic droit → Copy sur une release).`,
+          () => {
+            if (screen() === 'copyRelease') return true;
+            if (!model) { const m = scanArtistReleases(job.artist, job.title)[0]; if (m) { model = m; return true; } }
+            return false;
+          });
+        if (r === 'stop') throw new Error('arrêté à ta demande');
+        if (screen() !== 'copyRelease' && model) {
+          say(`1/6 · Modèle trouvé : « ${model.title} » (${model.artists}). Copie…`);
+          await contextCopy(model.td);
+          if (!(await waitScreen('copyRelease', 8000))) throw new Error('la copie de la release ne s’ouvre pas');
+        }
+      }
     }
     say('1/6 · Copie de la release…');
     await ACTIONS.copyRelease(data);
@@ -665,5 +712,5 @@
   ui.screen = screen();
   render();
 
-  window.__r2autoTest = { screen, ACTIONS, setCombo, setSelect, durationDigits, runAll, readTracks, findResourceNode };
+  window.__r2autoTest = { screen, ACTIONS, setCombo, setSelect, durationDigits, runAll, readTracks, findResourceNode, scanArtistReleases };
 })();
