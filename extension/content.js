@@ -344,14 +344,20 @@
   }
 
   // Ligne de l'arbre qui commence par « Titre | » (pistes) en évitant les covers
-  async function findResourceNode(title, { notCover = true } = {}) {
+  async function findResourceNode(title, { notCover = true, timeout = 15000 } = {}) {
     const w = norm(title) + ' |';
+    // une ressource : « Titre | ISRC | 0:02:12 » (une release finit par sa configuration et porte un id digital_…)
+    const isResource = (td) => !td.querySelector('[id^="digital_"],[id^="physical_"]') && /\|\s*\d{1,2}:\d{2}(:\d{2})?\s*$/.test(txt(td));
     const match = () => treeRows().filter(td => {
       const t = norm(txt(td));
-      return t.startsWith(w) && (!notCover || !/\[cover art\]/i.test(t));
+      return isResource(td) && t.startsWith(w) && (!notCover || !/\[cover art\]/i.test(t));
     });
     let hits = match();
-    if (!hits.length) { await expandFolder(/^RESOURCES\s*\(\d+\)/i); hits = match(); }
+    if (!hits.length) {
+      await expandFolder(/^RESOURCES\s*\(\d+\)/i);
+      // le dossier peut mettre quelques secondes à se remplir
+      hits = (await waitFor(() => { const h = match(); return h.length ? h : null; }, timeout, 500)) || [];
+    }
     return hits.length ? hits[hits.length - 1] : null;
   }
 
@@ -407,12 +413,32 @@
   const waitScreen = (name, timeout = 30000) => waitFor(() => !ui.busyModal && screen() === name, timeout, 400);
 
   // Lit les titres des pistes de la release ouverte (onglet Tracks)
+  // Pistes de la release ouverte (onglet Tracks) : lignes de la grille qui suit la corbeille des pistes
   function readTracks() {
-    const grid = gridAfter($id('img_delete_tracks'));
-    return rowsOf(grid).map(tr => {
+    const del = $id('img_delete_tracks');
+    if (!del) return [];
+    let box = null, n = del;
+    for (let i = 0; i < 10 && n && !box; i++) {
+      n = n.parentElement;
+      if (!n) break;
+      box = [...n.querySelectorAll('div.objbox')].filter(visible)
+        .find(b => (del.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) && !b.querySelector('tr.coverArtRow')) || null;
+    }
+    if (!box) box = gridAfter(del);
+    const rows = [...(box ? box.querySelectorAll('tr') : [])].filter(tr => visible(tr) && !tr.classList.contains('coverArtRow') && tr.querySelector('td'));
+    return rows.map(tr => {
       const tds = [...tr.querySelectorAll('td')];
-      return { row: tr, title: txt(tds[2]) || txt(tds.find(td => txt(td) && !/^\d+$/.test(txt(td)))) };
+      const iNum = tds.findIndex(td => /^\d{1,3}$/.test(txt(td)));
+      let title = '';
+      if (iNum >= 0) title = tds.slice(iNum + 1).map(txt).find(t => t && !/^\d+$/.test(t)) || '';
+      else if (/row_(odd|even)/.test(tr.className)) title = txt(tds[2]) || '';
+      return { row: tr, title };
     }).filter(t => t.title);
+  }
+
+  // Attend que la grille des pistes soit chargée (R2 la remplit après la page)
+  async function waitTracks(timeout = 12000) {
+    return (await waitFor(() => { const t = readTracks(); return t.length ? t : null; }, timeout, 400)) || [];
   }
 
   async function deleteOldTracks() {
@@ -485,9 +511,11 @@
     };
 
     // 1. Copie de la release de référence : la dernière sortie de l'artiste dans le projet ouvert
+    let modelTitle = '';
     if (screen() !== 'copyRelease') {
       say(`1/6 · Recherche de la dernière sortie de ${job.artist}…`);
       let model = await findLatestArtistRelease(job.artist, job.title);
+      if (model) modelTitle = model.title;
       if (model) {
         say(`1/6 · Modèle trouvé : « ${model.title} » (${model.artists}). Copie…`);
         await sleep(1200);
@@ -504,6 +532,7 @@
             return false;
           });
         if (r === 'stop') throw new Error('arrêté à ta demande');
+        if (model) modelTitle = model.title;
         if (screen() !== 'copyRelease' && model) {
           say(`1/6 · Modèle trouvé : « ${model.title} » (${model.artists}). Copie…`);
           await contextCopy(model.td);
@@ -516,8 +545,9 @@
 
     // 2. Release : titre, UPC, date + ménage de l'ancienne piste et de l'ancienne cover
     await needScreen('release', 'Ouvre la release copiée (double-clic dans l’arbre). Je continue dès qu’elle s’affiche.');
-    await sleep(800);
-    const old = readTracks().map(t => t.title);
+    say('2/6 · Lecture de la piste de la release copiée…');
+    const copiedTitle = (($id('title') && $id('title').value) || '').replace(/\s*\[copy\]\s*$/i, '').trim();
+    const old = [...new Set([...(await waitTracks()).map(t => t.title), copiedTitle, modelTitle].filter(Boolean))];
     say('2/6 · Release : titre, UPC, date…');
     await ACTIONS.release(data);
     await needScreen('release', 'Rouvre la release copiée pour que je retire l’ancienne piste.');
@@ -535,10 +565,14 @@
     }
 
     // 3. Copie de l'ancienne piste
-    say('3/6 · Copie de la piste « ' + (old[0] || '?') + ' »…');
-    const trackNode = old[0] ? await findResourceNode(old[0]) : null;
-    if (!(trackNode && await contextCopy(trackNode))) {
-      const r = await pause(`Clic droit sur la piste « ${old[0] || 'de l’ancienne sortie'} » (dossier RESOURCES) → Copy.`, () => screen() === 'copyResource');
+    let copied = false;
+    for (const t of old) {
+      say('3/6 · Recherche de la piste « ' + t + ' » dans RESOURCES…');
+      const node = await findResourceNode(t);
+      if (node && await contextCopy(node) && await waitScreen('copyResource', 8000)) { copied = true; break; }
+    }
+    if (!copied && screen() !== 'copyResource') {
+      const r = await pause(`Je ne trouve pas la piste « ${old[0] || '?'} » dans RESOURCES. Fais clic droit dessus → Copy, je reprends.`, () => screen() === 'copyResource');
       if (r === 'stop') throw new Error('arrêté à ta demande');
     }
     await needScreen('copyResource', 'Ouvre la copie de la piste (clic droit → Copy).');
@@ -552,9 +586,13 @@
     // 5. Copie pour la cover
     say('5/6 · Copie pour la cover…');
     await sleep(1200);
-    const newNode = await findResourceNode(job.title);
-    if (!(newNode && await contextCopy(newNode))) {
-      const r = await pause(`Clic droit sur la piste « ${job.title} » → Copy, pour créer la cover.`, () => screen() === 'copyResource');
+    let copiedImg = false;
+    for (const t of [job.title, ...old]) {
+      const node = await findResourceNode(t, { timeout: t === job.title ? 20000 : 8000 });
+      if (node && await contextCopy(node) && await waitScreen('copyResource', 8000)) { copiedImg = true; break; }
+    }
+    if (!copiedImg && screen() !== 'copyResource') {
+      const r = await pause(`Je ne trouve pas la piste « ${job.title} » dans RESOURCES. Fais clic droit dessus → Copy, je reprends pour la cover.`, () => screen() === 'copyResource');
       if (r === 'stop') throw new Error('arrêté à ta demande');
     }
     await needScreen('copyResource', 'Ouvre la copie de la piste pour la cover.');
