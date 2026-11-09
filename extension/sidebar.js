@@ -10,7 +10,7 @@ const DEFAULTS = {
   coverSize: '3000',
   coverDpi: '300 dpi',
   coverColor: 'RGB',
-  coverFormat: 'JPEG',
+  coverFormat: 'TIFF',
   autoSave: true
 };
 
@@ -122,6 +122,7 @@ async function saveSettings() {
   const s = {};
   SETTING_IDS.forEach(k => { s[k] = $('#s_' + k).value.trim() || DEFAULTS[k]; });
   s.autoSave = $('#s_autoSave').checked;
+  s.v = 2;
   await browser.storage.local.set({ [SET]: s });
 }
 SETTING_IDS.forEach(k => $('#s_' + k).addEventListener('change', saveSettings));
@@ -161,7 +162,10 @@ browser.storage.onChanged.addListener((ch) => { if (ch[STATE]) showState(ch[STAT
 (async () => {
   const d = await browser.storage.local.get([JOB, SET, STATE]);
   showJob(d[JOB] || { isrcAuto: true });
-  showSettings(d[SET] || DEFAULTS);
-  if (!d[SET]) await saveSettings();
+  const st = d[SET] ? { ...d[SET] } : null;
+  // 0.2.1 : la cover passe de JPEG à TIFF (anciens réglages mis à jour une fois)
+  if (st && !st.v && st.coverFormat === 'JPEG') st.coverFormat = 'TIFF';
+  showSettings(st || DEFAULTS);
+  if (!d[SET] || !d[SET].v) await saveSettings();
   showState(d[STATE]);
 })();

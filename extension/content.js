@@ -270,7 +270,7 @@
       if ($id('color_mode')) setSelect($id('color_mode'), set.coverColor || 'RGB');
       if ($id('height')) setText($id('height'), size);
       if ($id('width')) setText($id('width'), size);
-      if ($id('format')) await setCombo('format', set.coverFormat || 'JPEG');
+      if ($id('format')) await setCombo('format', (!set.v && set.coverFormat === 'JPEG') ? 'TIFF' : (set.coverFormat || 'TIFF'));
       let cleaned = false;
       if (arg === 'cleanup') cleaned = await removeSecondaryContributors();
       await step('image', 'ok');
