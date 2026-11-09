@@ -7,7 +7,7 @@ Extension Firefox pour saisir dans **R2** les sorties reçues par mail (titre, a
 ## Contenu du dépôt
 
 - `recorder/` : **R2 Recorder** (phase 1). Il enregistre les clics, les saisies et la structure des formulaires R2 pendant une création faite à la main. L’export JSON sert à construire l’automatisation.
-- `extension/` : **R2 Auto** (à venir). Il lit le mail et remplit R2 : release, piste, crédits.
+- `extension/` : **R2 Auto** (0.1.0, en test). Il lit le mail et le WAV, puis remplit R2 écran par écran à partir d’une copie de la dernière sortie de l’artiste : release, piste (ISRC, durée, auteurs, mix/master) et cover. Le Submit final reste manuel.
 - `docs/` : page de téléchargement (GitHub Pages) et fichiers `.xpi`.
 
 ## Installer pour tester

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>R2 Auto</title>
+  <link rel="stylesheet" href="sidebar.css">
+</head>
+<body>
+  <header>
+    <h1>R2 Auto <span>0.1</span></h1>
+    <p class="sub">Le mail de mise en ligne, saisi dans R2.</p>
+  </header>
+
+  <section class="card">
+    <h2>1. Colle le mail</h2>
+    <textarea id="mail" rows="6" placeholder="Titre : GEN Z&#10;Artiste principal : The Rap Angel&#10;Date de sortie : 11 novembre 2026 à 00h&#10;Auteur : Hugo de Souza&#10;Mix & master : Le_R"></textarea>
+    <button id="parse" class="primary">Analyser le mail</button>
+    <span id="parseMsg" class="msg"></span>
+  </section>
+
+  <section class="card">
+    <h2>2. Vérifie la fiche</h2>
+    <div id="confirm" class="warn" hidden></div>
+    <label>Titre<input id="f_title"></label>
+    <label>Artiste principal<input id="f_artist"></label>
+    <label>Featurings <small>(séparés par virgule)</small><input id="f_feats"></label>
+    <label>Date de sortie<input id="f_date" type="date"></label>
+    <label>Auteurs / compositeurs <small>(un par ligne)</small><textarea id="f_writers" rows="2"></textarea></label>
+    <label>Mix &amp; master <small>(un par ligne)</small><textarea id="f_mix" rows="2"></textarea></label>
+    <div class="row2">
+      <label>Durée<input id="f_duration" placeholder="3:13"></label>
+      <label class="file">🎵 WAV<input id="wav" type="file" accept=".wav,audio/*"></label>
+    </div>
+    <span id="wavMsg" class="hint"></span>
+    <label class="chk"><input id="f_isrcAuto" type="checkbox" checked> ISRC à générer (3rd Party + Auto-Generate)</label>
+    <p class="hint" id="extra"></p>
+  </section>
+
+  <section class="card">
+    <h2>3. Dans R2</h2>
+    <ol class="guide">
+      <li>Retrouve la dernière sortie de l’artiste. Clic droit sur la release → <b>Copy</b>.</li>
+      <li>Sur chaque écran, le bandeau <b>R2 Auto</b> (en haut à droite de R2) propose <b>Remplir cet écran</b>.</li>
+      <li>Copie la piste (clic droit → Copy) : bandeau → <b>Piste audio</b>. Puis copie-la encore → <b>Cover</b>.</li>
+      <li>Dans Identify, <b>c’est toi qui choisis</b> la bonne personne, puis l’extension continue.</li>
+      <li>Le <b>Submit Release</b> final reste à toi.</li>
+    </ol>
+    <div id="steps"></div>
+  </section>
+
+  <details class="card">
+    <summary>Réglages</summary>
+    <label>Config Group<input id="s_configGroup"></label>
+    <label>Configuration<input id="s_configuration"></label>
+    <div class="row2">
+      <label>Groupe mix/master<input id="s_mixGroup"></label>
+      <label>Rôle mix/master<input id="s_mixRole"></label>
+    </div>
+    <div class="row2">
+      <label>Cover : taille (px)<input id="s_coverSize"></label>
+      <label>Résolution<input id="s_coverDpi"></label>
+    </div>
+    <div class="row2">
+      <label>Couleur<input id="s_coverColor"></label>
+      <label>Format<input id="s_coverFormat"></label>
+    </div>
+    <label class="chk"><input id="s_autoSave" type="checkbox" checked> Cliquer « Save » après avoir rempli (sauf Submit)</label>
+    <button id="resetSettings" class="ghost">Remettre les réglages par défaut</button>
+  </details>
+
+  <button id="newJob" class="ghost wide">Nouvelle sortie (vider la fiche)</button>
+  <script src="parse.js"></script>
+  <script src="sidebar.js"></script>
+</body>
+</html>

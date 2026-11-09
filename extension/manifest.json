@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "R2 Auto",
+  "version": "0.1.0",
+  "description": "Remplit R2 à partir du mail de mise en ligne : release, piste, auteurs, mix/master, cover.",
+  "permissions": ["storage", "tabs", "*://r2.umusic.net/*"],
+  "background": { "scripts": ["background.js"] },
+  "content_scripts": [
+    { "matches": ["*://r2.umusic.net/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "sidebar_action": { "default_title": "R2 Auto", "default_panel": "sidebar.html", "default_icon": "icons/48.png", "open_at_install": true },
+  "browser_action": { "default_title": "R2 Auto", "default_icon": { "48": "icons/48.png" } },
+  "icons": { "48": "icons/48.png", "96": "icons/96.png" },
+  "browser_specific_settings": { "gecko": { "id": "r2-auto@bigced.reviews", "strict_min_version": "91.0" } }
+}
