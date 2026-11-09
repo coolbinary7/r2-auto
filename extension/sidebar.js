@@ -11,10 +11,12 @@ const DEFAULTS = {
   coverDpi: '300 dpi',
   coverColor: 'RGB',
   coverFormat: 'TIFF',
-  autoSave: true
+  autoSave: true,
+  artistWriter: true,
+  fixYears: true
 };
 
-const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'isrcAuto'];
+const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto'];
 const LABELS = { title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
@@ -26,6 +28,7 @@ function readJob() {
     writers: $('#f_writers').value.split('\n').map(s => s.trim()).filter(Boolean),
     mix: $('#f_mix').value.split('\n').map(s => s.trim()).filter(Boolean),
     duration: $('#f_duration').value.trim(),
+    genre: $('#f_genre').value.trim(),
     isrcAuto: $('#f_isrcAuto').checked,
     toConfirm: currentConfirm,
     extra: currentExtra
@@ -42,6 +45,7 @@ function showJob(j) {
   $('#f_writers').value = (j.writers || []).join('\n');
   $('#f_mix').value = (j.mix || []).join('\n');
   $('#f_duration').value = j.duration || '';
+  $('#f_genre').value = j.genre || '';
   $('#f_isrcAuto').checked = j.isrcAuto !== false;
   currentConfirm = j.toConfirm || [];
   currentExtra = j.extra || {};
@@ -70,6 +74,7 @@ $('#parse').addEventListener('click', async () => {
     title: p.title, artist: p.artist, feats: p.feats, date: p.date,
     writers: p.writers, mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
+    genre: p.genre || '',
     isrcAuto: p.isrcAuto, toConfirm: p.toConfirm,
     extra: { territory: p.territory, upc: p.upc, label: p.label }
   };
@@ -117,16 +122,20 @@ const SETTING_IDS = ['configGroup', 'configuration', 'mixGroup', 'mixRole', 'cov
 function showSettings(s) {
   SETTING_IDS.forEach(k => { $('#s_' + k).value = s[k] ?? DEFAULTS[k]; });
   $('#s_autoSave').checked = s.autoSave !== false;
+  $('#s_artistWriter').checked = s.artistWriter !== false;
+  $('#s_fixYears').checked = s.fixYears !== false;
 }
 async function saveSettings() {
   const s = {};
   SETTING_IDS.forEach(k => { s[k] = $('#s_' + k).value.trim() || DEFAULTS[k]; });
   s.autoSave = $('#s_autoSave').checked;
+  s.artistWriter = $('#s_artistWriter').checked;
+  s.fixYears = $('#s_fixYears').checked;
   s.v = 2;
   await browser.storage.local.set({ [SET]: s });
 }
 SETTING_IDS.forEach(k => $('#s_' + k).addEventListener('change', saveSettings));
-$('#s_autoSave').addEventListener('change', saveSettings);
+['autoSave', 'artistWriter', 'fixYears'].forEach(k => $('#s_' + k).addEventListener('change', saveSettings));
 $('#resetSettings').addEventListener('click', async () => { showSettings(DEFAULTS); await saveSettings(); });
 
 $('#newJob').addEventListener('click', async () => {
@@ -141,12 +150,13 @@ $('#newJob').addEventListener('click', async () => {
 // ---------- Avancement (écrit par le bandeau dans R2) ----------
 const STEP_LABELS = {
   copyRelease: 'Copie de la release',
-  release: 'Release (titre, UPC, date)',
+  release: 'Release (titre, UPC, date, ménage)',
   copyAudio: 'Copie de la piste',
   audio: 'Piste : ISRC, durée',
   contributors: 'Auteurs et mix/master',
   copyImage: 'Copie pour la cover',
-  image: 'Cover (taille, format)'
+  image: 'Cover (taille, format)',
+  link: 'Piste et cover rattachées à la release'
 };
 function showState(st) {
   const steps = (st && st.steps) || {};
@@ -158,6 +168,19 @@ function showState(st) {
   }).join('');
 }
 browser.storage.onChanged.addListener((ch) => { if (ch[STATE]) showState(ch[STATE].newValue); });
+
+// ---------- Lancer depuis le panneau (le bandeau de l'onglet R2 affiché exécute) ----------
+async function sendCmd(name) {
+  await save();
+  const j = readJob();
+  if (!j.title || !j.artist) { $('#runMsg').textContent = 'Remplis au moins le titre et l’artiste.'; return; }
+  const tabs = await browser.tabs.query({ url: '*://r2.umusic.net/*' }).catch(() => []);
+  if (!tabs.length) { $('#runMsg').textContent = 'Ouvre d’abord R2 dans un onglet de cette fenêtre.'; return; }
+  await browser.storage.local.set({ r2cmd: { name, t: Date.now() } });
+  $('#runMsg').textContent = name === 'resume' ? 'Reprise demandée : regarde le bandeau Auto R2 dans R2.' : 'C’est parti : suis l’avancement ci-dessous ou sur le bandeau dans R2.';
+}
+$('#runR2').addEventListener('click', () => sendCmd('run'));
+$('#resumeR2').addEventListener('click', () => sendCmd('resume'));
 
 (async () => {
   const d = await browser.storage.local.get([JOB, SET, STATE]);

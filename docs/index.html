@@ -55,20 +55,19 @@
       </div>
       <aside class="side">
         <div class="side-label">État du projet</div>
-        <div class="ver">Auto R2 0.3.3</div>
+        <div class="ver">Auto R2 0.4.0</div>
         <span class="state">En test</span>
-        <a class="btn p" href="./downloads/Auto-R2-0.3.3.xpi">Télécharger Auto R2 0.3.3</a>
+        <a class="btn p" href="./downloads/Auto-R2-0.4.0.xpi">Télécharger Auto R2 0.4.0</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-0.1.0.xpi">R2 Recorder 0.1.0 (pour enregistrer un nouveau cas)</a>
         <p class="note">Version 1 : artiste qui a déjà une sortie dans R2 (on part d’une copie). La création à partir de zéro viendra ensuite.</p>
       </aside>
     </section>
 
-    <h2>Où on en est</h2>
+    <h2>Nouveau dans la 0.4</h2>
     <div class="grid">
-      <div class="step"><b>1. Repérage ✓</b><p>Une sortie complète enregistrée avec le Recorder (GEN Z, The Rap Angel).</p></div>
-      <div class="step"><b>2. Écran par écran ✓</b><p>Version 0.1 testée sur le vrai R2.</p></div>
-      <div class="step now" style="grid-column:1/-1"><b>3. Tout enchaîné (maintenant · 0.2)</b><p>Un seul « Lancer tout » : l’extension trouve la dernière sortie de l’artiste et s’arrête seulement pour Identify et avant le Submit.</p></div>
-      
+      <div class="step now"><b>De bout en bout</b><p>La piste et la cover sont maintenant rattachées à la release (glisser-déposer fait par l’extension), puis la release est enregistrée.</p></div>
+      <div class="step"><b>Ne s’arrête plus</b><p>Si un écran résiste, le bandeau dit quoi faire et reprend tout seul. Bouton « Reprendre » : repart de l’étape en cours.</p></div>
+      <div class="step"><b>Fenêtres de R2</b><p>Les « Yes / Ok » connus sont gérés (retrait de piste, enregistrer avant de quitter…). Le Submit n’est jamais cliqué.</p></div>
     </div>
 
     <h2>Installer dans Firefox</h2>
@@ -79,19 +78,19 @@
         <li>Clique sur <b>« Charger un module complémentaire temporaire… »</b> et choisis le fichier <code>.xpi</code>.</li>
         <li>L’icône de l’extension apparaît en haut à droite (ou dans le menu puzzle 🧩).</li>
       </ol>
-      <p class="note">« Temporaire » : l’extension disparaît à la fermeture de Firefox, il faut la recharger ensuite. Une version signée par Mozilla, installée pour de bon, viendra avec R2 Auto.</p>
+      <p class="note">« Temporaire » : l’extension disparaît à la fermeture de Firefox, il faut la recharger ensuite. Une version signée par Mozilla, installée pour de bon, viendra ensuite.</p>
     </div>
 
     <h2>Utiliser Auto R2</h2>
     <div class="card">
       <ol>
         <li>Clique sur l’icône <b>R2</b> : le panneau s’ouvre à gauche de Firefox. Colle le mail du label, clique <b>Analyser le mail</b>, puis choisis le <b>WAV</b> pour la durée (lu sur place, rien n’est envoyé). Vérifie la fiche : ce qui est « à confirmer » est en orange.</li>
-        <li>Dans R2, ouvre le <b>projet du label</b> de l’artiste, puis clique <b>▶ Lancer tout</b> sur le bandeau <b>Auto R2</b> (en haut à droite).</li>
-        <li>L’extension repère toute seule la <b>dernière sortie de l’artiste</b> dans l’arbre (là où il est artiste principal) et enchaîne : copie de la release, titre / UPC / date, retrait de l’ancienne piste et de l’ancienne cover, copie de la piste, ISRC, durée, auteurs, mix/master, cover (3000 px, 300 dpi, RGB, TIFF) sans les anciens contributeurs secondaires.</li>
-        <li>Dans Identify, <b>c’est toi qui choisis</b> la bonne personne (Select) : l’extension continue toute seule.</li>
-        <li>À la fin, elle rouvre la release : vérifie (anciens auteurs de la piste copiée notamment) et fais toi-même le <b>Submit Release</b>.</li>
+        <li>Dans R2, ouvre le <b>projet du label</b> de l’artiste, puis clique <b>▶ Lancer dans R2</b> dans le panneau (ou « Lancer tout » sur le bandeau en haut à droite de R2).</li>
+        <li>L’extension enchaîne les 7 étapes : copie de la dernière sortie de l’artiste · titre, UPC Auto, date, retrait de l’ancienne piste et de l’ancienne cover · copie de la piste · ISRC, durée, auteurs, mix/master · copie en Cover Art · 3000 px, 300 dpi, RGB, TIFF sans les contributeurs secondaires · <b>rattachement de la piste et de la cover</b> puis Save.</li>
+        <li>Seule pause prévue : dans Identify, <b>c’est toi qui choisis</b> la bonne personne (Select). L’extension repart toute seule.</li>
+        <li>À la fin, vérifie la release et fais toi-même le <b>Submit Release</b>.</li>
       </ol>
-      <p class="note">Si un élément n’est pas trouvé, le bandeau te dit quoi faire à la main et reprend dès que l’écran attendu s’affiche. Les boutons écran par écran de la 0.1 restent disponibles. <b>Copier le diagnostic</b> sert à signaler un souci.</p>
+      <p class="note">Laisse l’onglet R2 affiché pendant le déroulé (2 à 4 minutes). Si le bandeau passe à l’orange, il explique le geste à faire et reprend dès que c’est fait. En cas d’arrêt : <b>Reprendre</b> repart de l’étape en cours. <b>Copier le diagnostic</b> contient maintenant le journal complet : colle-le à Claude s’il y a un souci.</p>
     </div>
 
     <h2>Enregistrer une saisie (Recorder)</h2>
@@ -105,7 +104,7 @@
       <p class="note">Le Recorder ne fait que regarder : il ne modifie rien dans R2 et n’envoie rien tant que tu n’exportes pas.</p>
     </div>
 
-    <footer>Outil interne non officiel · Auto R2 0.3.3 · R2 Recorder 0.1.0</footer>
+    <footer>Outil interne non officiel · Auto R2 0.4.0 · R2 Recorder 0.1.0</footer>
   </main>
 </body>
 </html>

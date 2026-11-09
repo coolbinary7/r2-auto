@@ -41,11 +41,12 @@
     ['isrc', /^(isrc)$/],
     ['upc', /^(upc|ean|code barre)$/],
     ['territory', /^(territoires?|territory|zone)$/],
-    ['label', /^(label)$/]
+    ['label', /^(label)$/],
+    ['genre', /^(genre|genre musical|style)$/]
   ];
 
   function parseMail(text) {
-    const out = { title: '', artist: '', feats: [], date: '', writers: [], mix: [], isrcAuto: true, upc: '', territory: '', label: '', toConfirm: [] };
+    const out = { title: '', artist: '', feats: [], date: '', writers: [], mix: [], isrcAuto: true, upc: '', territory: '', label: '', genre: '', toConfirm: [] };
     const lines = (text || '').split(/\r?\n/);
     for (const raw of lines) {
       const m = raw.match(/^\s*[-•*]?\s*([^:：]{2,40}?)\s*[:：]\s*(.+)$/);

@@ -7,7 +7,7 @@
 </head>
 <body>
   <header>
-    <h1>Auto R2 <span>0.3</span></h1>
+    <h1>Auto R2 <span>0.4</span></h1>
     <p class="sub">Le mail de mise en ligne, saisi dans R2.</p>
   </header>
 
@@ -32,6 +32,7 @@
       <label class="file">🎵 WAV<input id="wav" type="file" accept=".wav,audio/*"></label>
     </div>
     <span id="wavMsg" class="hint"></span>
+    <label>Genre <small>(facultatif — vide = celui de la sortie copiée)</small><input id="f_genre" placeholder="ex. Hip Hop"></label>
     <label class="chk"><input id="f_isrcAuto" type="checkbox" checked> ISRC à générer (3rd Party + Auto-Generate)</label>
     <p class="hint" id="extra"></p>
   </section>
@@ -39,11 +40,16 @@
   <section class="card">
     <h2>3. Dans R2</h2>
     <ol class="guide">
-      <li>Dans R2, ouvre le <b>projet du label</b> de l’artiste, puis clique <b>▶ Lancer tout</b> sur le bandeau <b>Auto R2</b> (en haut à droite).</li>
-      <li>L’extension repère toute seule la <b>dernière sortie de l’artiste</b> dans l’arbre, la copie et enchaîne tout le reste.</li>
-      <li>Dans Identify, <b>c’est toi qui choisis</b> la bonne personne (Select) : elle continue toute seule.</li>
+      <li>Ouvre R2 sur le <b>projet du label</b> de l’artiste, puis clique <b>▶ Lancer dans R2</b> ci-dessous (ou « Lancer tout » sur le bandeau).</li>
+      <li>L’extension fait tout : copie de la dernière sortie de l’artiste, titre / UPC / date, piste, ISRC, durée, auteurs, mix/master, cover, puis <b>rattache la piste et la cover</b> et enregistre.</li>
+      <li>Seule pause : dans Identify, <b>c’est toi qui choisis</b> la bonne personne (Select).</li>
       <li>À la fin, vérifie la release et fais toi-même le <b>Submit Release</b>.</li>
     </ol>
+    <div class="row2">
+      <button id="runR2" class="primary">▶ Lancer dans R2</button>
+      <button id="resumeR2" class="ghost">↻ Reprendre</button>
+    </div>
+    <span id="runMsg" class="hint"></span>
     <div id="steps"></div>
   </section>
 
@@ -64,6 +70,8 @@
       <label>Format<input id="s_coverFormat"></label>
     </div>
     <label class="chk"><input id="s_autoSave" type="checkbox" checked> Cliquer « Save » après avoir rempli (sauf Submit)</label>
+    <label class="chk"><input id="s_artistWriter" type="checkbox" checked> Ajouter aussi l’artiste principal comme auteur</label>
+    <label class="chk"><input id="s_fixYears" type="checkbox" checked> Mettre l’année ℗ / © sur l’année de sortie si elle diffère</label>
     <button id="resetSettings" class="ghost">Remettre les réglages par défaut</button>
   </details>
 
