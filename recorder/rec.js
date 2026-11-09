@@ -1,4 +1,4 @@
-// Note chaque clic / saisie dans R2 avec une description précise de l'élément.
+// Note chaque clic, saisie, glisser-déposer et envoi de fichier de l'onglet enregistré, avec une description précise de l'élément.
 (() => {
   if (window.__r2rec) return;
   window.__r2rec = true;
@@ -79,8 +79,13 @@
       d.value = short(String(el.value), 200);
     }
     if (el.type === 'checkbox' || el.type === 'radio') d.checked = el.checked;
+    if (el.type === 'file') { d.accept = el.getAttribute('accept') || undefined; d.multiple = el.multiple || undefined; d.files = filesOf(el.files); d.shown = visible(el); }
+    if (el.getAttribute('draggable') === 'true') d.draggable = true;
     return d;
   }
+
+  // fichiers choisis ou déposés : nom, taille, type (jamais le contenu)
+  const filesOf = (list) => list && list.length ? [...list].slice(0, 30).map(f => ({ name: f.name, size: f.size, type: f.type })) : undefined;
 
   // élément « utile » : bouton/lien/champ le plus proche du clic
   function useful(el) {
@@ -109,6 +114,18 @@
     const el = useful(e.target);
     send('clic', el, { clicked: e.target !== el ? describe(e.target) : undefined });
   }, true);
+  // glisser-déposer à la souris (appui à un endroit, relâchement ailleurs)
+  let down = null;
+  document.addEventListener('mousedown', (e) => { down = e.button === 0 ? { el: e.target, x: e.clientX, y: e.clientY } : null; }, true);
+  document.addEventListener('mouseup', (e) => {
+    const d = down; down = null;
+    if (!d || !d.el.isConnected) return;
+    if (d.el !== e.target && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 25) send('glisser', useful(d.el), { from: describe(d.el), to: describe(e.target), toUseful: describe(useful(e.target)) });
+  }, true);
+  // glisser-déposer natif et dépôt de fichiers depuis l'ordinateur
+  document.addEventListener('dragstart', (e) => send('début de glisser', useful(e.target)), true);
+  document.addEventListener('drop', (e) => send('dépôt', useful(e.target), { target: describe(e.target), files: filesOf(e.dataTransfer && e.dataTransfer.files), types: e.dataTransfer ? [...e.dataTransfer.types] : undefined }), true);
+  document.addEventListener('paste', (e) => send('coller', e.target), true);
   document.addEventListener('dblclick', (e) => send('double-clic', useful(e.target)), true);
   document.addEventListener('contextmenu', (e) => send('clic-droit', useful(e.target)), true);
   document.addEventListener('change', (e) => send('changement', e.target), true);
@@ -130,9 +147,9 @@
   function snap(reason, force) {
     if (!document.body) return;
     const fields = [];
-    const sel = 'input, select, textarea, button, a[onclick], a[href], img[onclick], [role=button], [role=combobox], [role=option], [role=tab], [contenteditable=true]';
+    const sel = 'input, select, textarea, button, a[onclick], a[href], img[onclick], [role=button], [role=combobox], [role=option], [role=tab], [role=menuitem], [role=checkbox], [contenteditable=true], [draggable=true], [class*="dropzone" i], [class*="upload" i], object, embed, applet';
     for (const el of document.querySelectorAll(sel)) {
-      if (!visible(el)) continue;
+      if (!visible(el) && el.type !== 'file') continue;
       if (el.type === 'hidden') continue;
       fields.push(describe(el));
       if (fields.length > 600) break;
@@ -140,7 +157,7 @@
     const headings = [...document.querySelectorAll('h1,h2,h3,legend,.title,.header,th')].filter(visible).map(txt).filter(Boolean).slice(0, 60);
     browser.runtime.sendMessage({
       type: 'snap', force: !!force,
-      snap: { reason, t: Date.now(), frame: location.href, title: document.title, headings, fields, frames: document.querySelectorAll('iframe,frame').length }
+      snap: { reason, t: Date.now(), frame: location.href, top: window.top === window, title: document.title, headings, fields, frames: [...document.querySelectorAll('iframe,frame')].slice(0, 20).map(f => (f.getAttribute('src') || f.id || f.name || '').slice(0, 160)) }
     });
   }
   browser.runtime.onMessage.addListener((m) => { if (m && m.type === 'doSnap') snap('capture manuelle', true); });

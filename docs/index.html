@@ -65,7 +65,7 @@
         <div class="ver">Auto R2 0.4.2</div>
         <span class="state">En test</span>
         <a class="btn p" href="./downloads/Auto-R2-0.4.2.xpi">Télécharger Auto R2 0.4.2</a>
-        <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-0.1.0.xpi">R2 Recorder 0.1.0 (pour enregistrer un nouveau cas)</a>
+        <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-0.2.0.xpi">R2 Recorder 0.2.0 (pour enregistrer un nouveau cas)</a>
         <p class="note">Aujourd’hui : <b>single</b> d’un artiste qui a déjà une sortie dans R2. Album, deluxe, remix, snippet : voir <a href="#records" style="color:var(--accent)">les enregistrements à fournir</a>.</p>
       </aside>
     </section>
@@ -121,21 +121,39 @@
       </div>
     </div>
 
+    <h2>Les autres applis : RWS, CWS, AIT</h2>
+    <div class="card">
+      <p style="margin:0 0 16px;line-height:1.7;color:#3d3f3a">Objectif : automatiser aussi ce qui se fait autour de R2. Le Recorder <b>0.2.0</b> enregistre maintenant n’importe quel onglet (celui où tu cliques « Démarrer »), ainsi que les glisser-déposer et les envois de fichiers (le nom du fichier seulement, jamais son contenu).</p>
+      <div class="scroll">
+      <table class="rec">
+        <thead><tr><th>Appli</th><th>Ce qu’il faut enregistrer</th><th>État</th></tr></thead>
+        <tbody>
+          <tr><td>CWS · cover</td><td>L’envoi de la cover d’une sortie, du début à la confirmation : recherche de la release ou de la ressource, choix du fichier, validation.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>AIT · audio</td><td>L’envoi du son d’<b>un single</b>, puis d’<b>un album</b> (plusieurs fichiers) : recherche par ISRC ou UPC, choix des fichiers, association aux pistes, validation.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>RWS</td><td>Ce que tu y fais pour une sortie après R2, du début à la fin (un enregistrement par tâche différente).</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Enchaînement complet</td><td>Idéalement <b>une sortie suivie de bout en bout</b> : R2, puis CWS, puis AIT, puis RWS, en ajoutant chaque onglet à l’enregistrement.</td><td><span class="tag todo">À fournir</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="note">Le Recorder ne fonctionne que dans <b>Firefox</b>. Si une de ces applis ne s’ouvre que dans Chrome ou Edge, ou n’est pas une page web (logiciel installé sur le PC), dis-le à Ced : il faudra un autre outil pour l’enregistrer.</p>
+    </div>
+
     <h2>Faire un bon enregistrement</h2>
     <div class="card">
       <ol>
         <li>Installe le <b>R2 Recorder</b> (bouton en haut de page, même installation qu’Auto R2).</li>
-        <li>Ouvre le projet du label dans R2, puis clique <b>● Démarrer l’enregistrement</b> <b>avant</b> le premier geste.</li>
+        <li>Affiche l’onglet de l’appli à enregistrer (R2 sur le projet du label, CWS, AIT, RWS), puis clique <b>● Démarrer l’enregistrement</b> <b>avant</b> le premier geste. Seul cet onglet est enregistré.</li>
+        <li>Si tu passes dans une autre appli en cours de route, affiche son onglet et clique <b>＋ Enregistrer aussi cet onglet</b>.</li>
         <li>Fais la saisie <b>comme d’habitude, sans Auto R2</b>, du début jusqu’au Save final (le Submit peut être inclus). Un seul cas par enregistrement.</li>
         <li>Quand une fenêtre s’ouvre (Identify, recherche…), clique <b>📸 Capturer l’écran actuel</b>.</li>
-        <li><b>■ Arrêter</b>, puis <b>⬇ Exporter</b> : le fichier <code>r2-enregistrement-….json</code> arrive dans les Téléchargements.</li>
+        <li><b>■ Arrêter</b>, puis <b>⬇ Exporter</b> : un fichier <code>enregistrement-….json</code> arrive dans les Téléchargements.</li>
         <li>Envoie à <b>Ced</b>, en privé : le fichier, le <b>mail du label</b> correspondant (capture ou texte), et une ligne sur le cas (« album 8 titres », « remix de… »).</li>
       </ol>
       <p class="note"><b>Ne dépose pas le fichier sur GitHub ni dans un canal public.</b> Il contient des données internes : titres, artistes, ton nom d’utilisateur R2 et des adresses de session Identify. Il se transmet de la main à la main (mail interne, Teams).</p>
       <p class="note">Si tu t’es trompé en cours de route, ce n’est pas grave : note-le dans ton message (« j’ai ouvert la copie par erreur vers la fin »), ça évite d’automatiser une erreur.</p>
     </div>
 
-    <footer>Outil interne non officiel · Auto R2 0.4.2 · R2 Recorder 0.1.0</footer>
+    <footer>Outil interne non officiel · Auto R2 0.4.2 · R2 Recorder 0.2.0</footer>
   </main>
 </body>
 </html>

@@ -12,13 +12,14 @@ button{display:block;width:100%;font:600 13px system-ui;border-radius:8px;paddin
 small{display:block;margin-top:8px;color:#6b7280}
 </style></head><body>
 <h1>R2 Recorder</h1>
-<p>Enregistre tes clics et saisies dans R2 pour que Claude construise l’automatisation.</p>
+<p>Enregistre tes gestes dans <b>l’onglet affiché</b> (R2, RWS, CWS, AIT…) pour que Claude construise l’automatisation. Les autres onglets ne sont pas enregistrés.</p>
 <div id="st" class="st">…</div>
 <button id="start">● Démarrer l’enregistrement</button>
+<button id="add">＋ Enregistrer aussi cet onglet</button>
 <button id="stop">■ Arrêter</button>
 <button id="snap">📸 Capturer l’écran actuel</button>
 <button id="export">⬇ Exporter (fichier dans Téléchargements)</button>
 <button id="clear">Effacer et recommencer</button>
-<small>Rien n’est envoyé nulle part : tout reste dans Firefox jusqu’à l’export.</small>
+<small>Rien n’est envoyé nulle part : tout reste dans Firefox jusqu’à l’export. Les mots de passe et le contenu des fichiers ne sont jamais enregistrés (seulement le nom des fichiers).</small>
 <script src="popup.js"></script>
 </body></html>
