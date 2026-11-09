@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.4.1';
+  const VERSION = '0.4.2';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -593,6 +593,7 @@
   }
   async function showTracks() {
     if (tracksBox()) return true;
+    if ($id('tabBar_releases_tracks_tab_div_a')) { await openTab('tabBar_releases_tracks_tab_div_a', () => !!tracksBox(), 'Tracks'); return !!tracksBox(); }
     const tab = [...document.querySelectorAll('a[id^="tabBar_releases_"][id$="_tab_div_a"]')].find(a => /^(tracks?|seq)/i.test(txt(a)) && a !== unseqTab());
     if (tab) await openTab(tab.id, () => !!tracksBox(), 'Tracks');
     return !!tracksBox();
@@ -780,6 +781,35 @@
     await sleep(400);
   }
 
+  // Artistes hérités de la sortie copiée et absents de la fiche (ex. un featuring) : on les retire
+  async function removeExtraArtists(job, where) {
+    const wanted = [job.artist, ...(job.feats || [])].map(norm).filter(Boolean);
+    if (!wanted.length) return 0;
+    const rows = () => contribRows('editPrimaryContributor');
+    await waitFor(() => rows().length, 4000);
+    const isWanted = (tr) => { const t = norm(txt(tr)); return wanted.some(w => t.includes(w)); };
+    let removed = 0;
+    for (let i = 0; i < 8; i++) {
+      const rs = rows();
+      const extra = rs.filter(tr => !isWanted(tr));
+      if (!extra.length) break;
+      if (!rs.some(isWanted)) { log(`${where} : artiste principal introuvable dans la grille, je ne retire rien`); break; }
+      const row = extra[0], n = rs.length;
+      const who = [...row.querySelectorAll('td')].map(txt).filter(t => t.length > 1 && !/^\d+$/.test(t))[0] || '?';
+      log(`${where} : retrait de l’artiste en trop « ${who} »`);
+      selectRow(row);
+      await sleep(400);
+      const del = vis('img#img_primary_contributors_delete');
+      if (!del) { log('corbeille des artistes introuvable'); break; }
+      expectDelete();
+      click(del);
+      if (!await waitFor(() => rows().length < n, 8000)) { log('retrait d’artiste non confirmé'); notes.push(`${where} : artiste « ${who} » à retirer à la main`); break; }
+      await waitIdle();
+      removed++;
+    }
+    return removed;
+  }
+
   async function removeSecondaryContributors() {
     await openTab('tabBar_resources_contributors_tab_div_a', () => vis('img#img_secondary_contributors_add') || vis('img#img_secondary_contributors_delete'), 'Contributors');
     await sleep(900);
@@ -852,6 +882,13 @@
       }
       fixYear('p_notice_year', job, set); fixYear('c_notice_year', job, set);
       await sleep(400);
+      if (run && run.modelArtists && $id('tabBar_releases_contributors_tab_div_a')) {
+        await openTab('tabBar_releases_contributors_tab_div_a', () => vis('img#img_primary_contributors_add') || vis('img#img_primary_contributors_delete'), 'Contributors');
+        await sleep(700);
+        await removeExtraArtists(job, 'release');
+        await showTracks();
+        await sleep(600);
+      }
       const nT = await deleteOldTracks(null);
       const left = readTracks().filter(t => !t.isNew).length;
       const nC = await unlinkOldCover();
@@ -919,6 +956,7 @@
         await sleep(700);
         await waitIdle();
       }
+      await removeExtraArtists(job, 'piste');
       const writers = [];
       if (set.artistWriter !== false && job.artist) writers.push(job.artist);
       for (const w of (job.writers || [])) if (!writers.some(x => norm(x) === norm(w))) writers.push(w);
@@ -944,7 +982,7 @@
       return 'Piste enregistrée : ISRC, durée, auteurs, mix/master.';
     },
 
-    async resourceImage({ set }, arg) {
+    async resourceImage({ job, set }, arg) {
       const size = set.coverSize || '3000';
       const sel = (id, v) => { const el = $id(id); if (el && visible(el)) { try { setSelect(el, v); } catch (e) { log(`${id} : ${e.message}`); } } };
       sel('measurement2', 'pixels');
@@ -955,7 +993,7 @@
       if ($id('width')) setText($id('width'), size);
       if ($id('format')) await setCombo('format', (!set.v && set.coverFormat === 'JPEG') ? 'TIFF' : (set.coverFormat || 'TIFF'), 'Format');
       let cleaned = true;
-      if (arg === 'cleanup') cleaned = await removeSecondaryContributors();
+      if (arg === 'cleanup') { cleaned = await removeSecondaryContributors(); await removeExtraArtists(job, 'cover'); }
       await step('image', cleaned ? 'ok' : 'contributeurs secondaires à retirer à la main');
       if (!cleaned) notes.push('Cover : contributeurs secondaires copiés à retirer à la main');
       if (set.autoSave === false) return 'Cover remplie. Vérifie puis clique « Save ».';
@@ -1162,9 +1200,9 @@
       await done(7);
     }
     await rememberProject(job);
-    if (run.modelArtists) notes.unshift(`artistes repris de la sortie copiée : ${run.modelArtists} — à corriger s’ils ne sont pas tous sur ce titre`);
+    const art = run.modelArtists ? ` La sortie copiée avait d’autres artistes (${run.modelArtists}) : je n’ai gardé que ceux de la fiche, vérifie-les.` : '';
     const extra = notes.length ? ' R2 a signalé : ' + notes.map(n => '« ' + n.slice(0, 120) + ' »').join(' ; ') + '.' : '';
-    return `Terminé ✓ « ${job.title} » est prête : release, piste (ISRC, durée, auteurs, mix/master) et cover rattachées et enregistrées.${extra} Vérifie, puis fais toi-même le Submit Release.`;
+    return `Terminé ✓ « ${job.title} » est prête : release, piste (ISRC, durée, auteurs, mix/master) et cover rattachées et enregistrées.${art}${extra} Vérifie, puis fais toi-même le Submit Release.`;
   }
 
   // ---------- Bandeau ----------
