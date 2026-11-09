@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.4.0';
+  const VERSION = '0.4.1';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -459,14 +459,21 @@
     }
     return out;
   }
-  function scanArtistReleases(artist, excludeTitle) {
+  let scanArtistReleases = function (artist, excludeTitle, feats) {
     const a = norm(artist);
+    const wanted = [a, ...(feats || []).map(norm)].sort().join('|');
     return releaseList()
       .filter(r => r.names.includes(a) && !/\[copy\]/i.test(r.title) && !(excludeTitle && norm(r.title) === norm(excludeTitle)))
-      .map(r => ({ ...r, main: r.names[0] === a }))
-      .sort((x, y) => (y.main - x.main) || (y.id - x.id)); // artiste principal d'abord, puis la plus récente
+      .map(r => ({ ...r, main: r.names[0] === a, exact: [...r.names].sort().join('|') === wanted }))
+      // mêmes artistes que la fiche d'abord (pas de featuring hérité), puis artiste principal, puis la plus récente
+      .sort((x, y) => (y.exact - x.exact) || (y.main - x.main) || (y.id - x.id));
+  };
+  async function findLatestArtistRelease(artist, excludeTitle, feats) {
+    const scan = scanArtistReleases;
+    scanArtistReleases = (a, e) => scan(a, e, feats);
+    try { return await findLatest0(artist, excludeTitle); } finally { scanArtistReleases = scan; }
   }
-  async function findLatestArtistRelease(artist, excludeTitle) {
+  async function findLatest0(artist, excludeTitle) {
     let list = scanArtistReleases(artist, excludeTitle);
     if (!list.length && await expandFolder(/^RELEASES\s*\(/i)) {
       list = (await waitFor(() => { const l = scanArtistReleases(artist, excludeTitle); return l.length ? l : null; }, 25000, 500)) || [];
@@ -1033,12 +1040,12 @@
       if (screen() !== 'copyRelease') {
         say(`1/7 · Recherche de la dernière sortie de ${job.artist}…`);
         await ensureProject(job);
-        let model = await findLatestArtistRelease(job.artist, job.title);
+        let model = await findLatestArtistRelease(job.artist, job.title, job.feats);
         if (!model) {
           const r = await pause(`Pas de sortie de « ${job.artist} » dans ce que je vois. Ouvre le projet du label de l’artiste (ou fais clic droit → Copy sur la release à copier) : je continue tout seul.`,
-            () => screen() === 'copyRelease' || !!(model = scanArtistReleases(job.artist, job.title)[0]));
+            () => screen() === 'copyRelease' || !!(model = scanArtistReleases(job.artist, job.title, job.feats)[0]));
           if (r === 'stop') throw new Stop();
-          if (!model && screen() !== 'copyRelease') model = await findLatestArtistRelease(job.artist, job.title);
+          if (!model && screen() !== 'copyRelease') model = await findLatestArtistRelease(job.artist, job.title, job.feats);
         }
         const dup = newReleaseNode(job, model ? model.id : 0);
         if (dup && screen() !== 'copyRelease') {
@@ -1047,6 +1054,7 @@
         }
         if (model && screen() !== 'copyRelease') {
           run.modelTitle = model.title; run.modelId = model.id;
+          if (!model.exact) { run.modelArtists = model.artists; log('modèle avec d’autres artistes : ' + model.artists); }
           say(`1/7 · Modèle : « ${model.title} » (${model.artists}). Copie…`);
           await sleep(600);
           for (let i = 0; i < 2 && screen() !== 'copyRelease'; i++) {
@@ -1154,6 +1162,7 @@
       await done(7);
     }
     await rememberProject(job);
+    if (run.modelArtists) notes.unshift(`artistes repris de la sortie copiée : ${run.modelArtists} — à corriger s’ils ne sont pas tous sur ce titre`);
     const extra = notes.length ? ' R2 a signalé : ' + notes.map(n => '« ' + n.slice(0, 120) + ' »').join(' ; ') + '.' : '';
     return `Terminé ✓ « ${job.title} » est prête : release, piste (ISRC, durée, auteurs, mix/master) et cover rattachées et enregistrées.${extra} Vérifie, puis fais toi-même le Submit Release.`;
   }
