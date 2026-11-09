@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "R2 Recorder",
+  "version": "0.1.0",
+  "description": "Enregistre les clics et saisies dans R2 pour préparer l'automatisation.",
+  "permissions": ["storage", "downloads", "tabs", "*://r2.umusic.net/*", "*://*.umgapps.com/*", "*://*.umusic.net/*"],
+  "background": { "scripts": ["bg.js"] },
+  "content_scripts": [
+    {
+      "matches": ["*://r2.umusic.net/*", "*://*.umgapps.com/*", "*://*.umusic.net/*"],
+      "js": ["rec.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_action": { "default_popup": "popup.html", "default_title": "R2 Recorder", "default_icon": { "48": "icon48.png" } },
+  "icons": { "48": "icon48.png" },
+  "browser_specific_settings": { "gecko": { "id": "r2-recorder@bigced.reviews", "strict_min_version": "91.0" } }
+}

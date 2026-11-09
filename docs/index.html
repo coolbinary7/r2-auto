@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f7f4">
+  <meta name="description" content="Extension Firefox qui automatise la saisie des sorties dans R2.">
+  <title>R2 Auto — Téléchargement</title>
+  <style>
+    :root{--ink:#171816;--muted:#747670;--line:#e7e8e2;--paper:#f7f7f4;--white:#fff;--accent:#1f4e8c;--red:#dc2626}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    .topbar{height:68px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(20px,calc((100vw - 1000px)/2));background:rgba(255,255,255,.72)}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.03em;font-size:18px}
+    .brand img{width:30px;height:30px;border-radius:7px}
+    .toplink{font-size:13px;color:var(--muted);text-decoration:none}
+    main{width:min(100% - 32px,1000px);margin:0 auto}
+    .hero{padding:64px 0 40px;display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:end}
+    .eyebrow{display:flex;align-items:center;gap:9px;color:#62645e;text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:800}
+    .dot{height:8px;width:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(31,78,140,.12)}
+    h1{font-size:clamp(38px,6vw,64px);line-height:1;letter-spacing:-.07em;margin:18px 0 16px;font-weight:780}
+    .intro{color:#5e605a;font-size:17px;line-height:1.7;margin:0;max-width:540px}
+    .side{border-left:1px solid var(--line);padding-left:28px}
+    .side-label{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);font-weight:800}
+    .ver{font-size:30px;font-weight:780;letter-spacing:-.06em;margin:10px 0 4px}
+    .state{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:3px 9px;background:#fef3c7;color:#92400e;margin-bottom:14px}
+    .btn{display:block;text-align:center;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;padding:13px 16px;margin-bottom:8px}
+    .btn.p{background:var(--ink);color:#fff}
+    .btn.off{background:#fff;border:1px dashed var(--line);color:var(--muted);pointer-events:none}
+    .note{color:var(--muted);font-size:12px;line-height:1.6;margin:6px 0 0}
+    h2{font-size:23px;letter-spacing:-.045em;margin:0 0 18px}
+    .card{background:var(--white);border:1px solid var(--line);border-radius:19px;padding:26px 30px;margin-bottom:16px}
+    ol,ul{margin:0;padding-left:20px;line-height:1.8;color:#3d3f3a}
+    code{background:#f1f2ee;border-radius:6px;padding:2px 6px;font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+    .step{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+    .step b{display:block;margin-bottom:6px}
+    .step p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+    .step.now{border-color:var(--accent)}
+    footer{color:var(--muted);font-size:12px;padding:30px 0 60px}
+    @media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:36px}.side{border-left:0;padding-left:0}.grid{grid-template-columns:1fr}.card{padding:20px}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="./icon.png" alt="">R2 Auto</div>
+    <a class="toplink" href="https://github.com/coolbinary7/r2-auto">Code source</a>
+  </header>
+  <main>
+    <section class="hero">
+      <div>
+        <div class="eyebrow"><span class="dot"></span>Extension Firefox · R2</div>
+        <h1>Le mail de mise en ligne, saisi dans R2.</h1>
+        <p class="intro">Tu colles le mail du label (titre, artiste, date, auteurs, mix…), tu vérifies la fiche, et l’extension remplit R2 : release, piste, crédits. Elle s’arrête et te prévient dès qu’un choix ne peut pas être deviné.</p>
+      </div>
+      <aside class="side">
+        <div class="side-label">État du projet</div>
+        <div class="ver">Phase 1 · repérage</div>
+        <span class="state">En test</span>
+        <a class="btn p" href="./downloads/R2-Recorder-0.1.0.xpi">Télécharger R2 Recorder 0.1.0</a>
+        <a class="btn off">R2 Auto — bientôt</a>
+        <p class="note">Le Recorder enregistre une saisie faite à la main dans R2 : c’est ce qui permet de construire R2 Auto sans tâtonner.</p>
+      </aside>
+    </section>
+
+    <h2>Où on en est</h2>
+    <div class="grid">
+      <div class="step now"><b>1. Repérage (maintenant)</b><p>Enregistrer une création complète dans R2 avec le Recorder et envoyer le fichier exporté.</p></div>
+      <div class="step"><b>2. R2 Auto en test</b><p>Remplissage de R2 à partir du mail, en mode Guidé, d’abord sur R2 Training.</p></div>
+      <div class="step"><b>3. En production</b><p>Même extension, même page : seule la version change.</p></div>
+    </div>
+
+    <h2>Installer dans Firefox</h2>
+    <div class="card">
+      <ol>
+        <li>Télécharge le fichier <code>.xpi</code> ci-dessus.</li>
+        <li>Dans Firefox, ouvre <code>about:debugging#/runtime/this-firefox</code>.</li>
+        <li>Clique sur <b>« Charger un module complémentaire temporaire… »</b> et choisis le fichier <code>.xpi</code>.</li>
+        <li>L’icône de l’extension apparaît en haut à droite (ou dans le menu puzzle 🧩).</li>
+      </ol>
+      <p class="note">« Temporaire » : l’extension disparaît à la fermeture de Firefox, il faut la recharger ensuite. Une version signée par Mozilla, installée pour de bon, viendra avec R2 Auto.</p>
+    </div>
+
+    <h2>Enregistrer une saisie (Recorder)</h2>
+    <div class="card">
+      <ol>
+        <li>Dans R2, clique sur l’icône, puis <b>● Démarrer l’enregistrement</b>.</li>
+        <li>Crée une sortie complète comme d’habitude : release, piste (Resource), crédits, rattachement, jusqu’au bout.</li>
+        <li>Quand une nouvelle fenêtre s’ouvre (recherche Identify…), clique <b>📸 Capturer l’écran actuel</b>.</li>
+        <li><b>■ Arrêter</b>, puis <b>⬇ Exporter</b> : un fichier <code>r2-enregistrement-….json</code> arrive dans tes Téléchargements.</li>
+      </ol>
+      <p class="note">Le Recorder ne fait que regarder : il ne modifie rien dans R2 et n’envoie rien tant que tu n’exportes pas.</p>
+    </div>
+
+    <footer>Outil interne non officiel.</footer>
+  </main>
+</body>
+</html>
