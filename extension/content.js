@@ -262,7 +262,7 @@
       return 'Piste remplie. Vérifie puis clique « Save ».';
     },
 
-    async resourceImage({ set }) {
+    async resourceImage({ set }, arg) {
       const size = set.coverSize || '3000';
       if ($id('measurement2')) setSelect($id('measurement2'), 'pixels');
       if ($id('measurement')) setSelect($id('measurement'), 'pixels');
@@ -271,11 +271,13 @@
       if ($id('height')) setText($id('height'), size);
       if ($id('width')) setText($id('width'), size);
       if ($id('format')) await setCombo('format', set.coverFormat || 'JPEG');
+      let cleaned = false;
+      if (arg === 'cleanup') cleaned = await removeSecondaryContributors();
       await step('image', 'ok');
       if (set.autoSave !== false) {
         click(vis('img#img_saveActionIcon'));
         await waitIdle();
-        return 'Cover enregistrée. Retire les contributeurs secondaires copiés s’il y en a. Le Submit Release reste à toi.';
+        return cleaned ? 'Cover enregistrée (contributeurs secondaires retirés).' : 'Cover enregistrée. Retire les contributeurs secondaires copiés s’il y en a. Le Submit Release reste à toi.';
       }
       return 'Cover remplie. Vérifie puis clique « Save ».';
     }
@@ -317,6 +319,216 @@
     await waitIdle();
   }
 
+
+  // ---------- Arbre (Explorer), grilles et menu clic droit ----------
+  const rowsOf = (objbox) => objbox ? [...objbox.querySelectorAll('tr')].filter(tr => /row_(odd|even)/.test(tr.className) && visible(tr)) : [];
+
+  // Grille qui suit un bouton (ex. corbeille des pistes → grille des pistes)
+  function gridAfter(el) {
+    if (!el) return null;
+    const boxes = [...document.querySelectorAll('div.objbox')].filter(visible);
+    return boxes.find(b => el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+  }
+
+  function treeRows() {
+    return [...document.querySelectorAll('td.standartTreeRow')];
+  }
+
+  async function expandFolder(re) {
+    const folder = treeRows().find(td => re.test(txt(td)) && visible(td));
+    if (!folder) return false;
+    const row = folder.closest('tr');
+    const plus = row && [...row.querySelectorAll('td.standartTreeImage img')].find(i => /plus/i.test(i.getAttribute('src') || ''));
+    if (plus) { click(plus); await sleep(1500); }
+    return true;
+  }
+
+  // Ligne de l'arbre qui commence par « Titre | » (pistes) en évitant les covers
+  async function findResourceNode(title, { notCover = true } = {}) {
+    const w = norm(title) + ' |';
+    const match = () => treeRows().filter(td => {
+      const t = norm(txt(td));
+      return t.startsWith(w) && (!notCover || !/\[cover art\]/i.test(t));
+    });
+    let hits = match();
+    if (!hits.length) { await expandFolder(/^RESOURCES\s*\(\d+\)/i); hits = match(); }
+    return hits.length ? hits[hits.length - 1] : null;
+  }
+
+  function findReleaseNode(title) {
+    const w = norm(title) + ' |';
+    return treeRows().find(td => {
+      const inner = td.querySelector('[id^="digital_"]');
+      return inner && norm(txt(td)).replace(/^[a-z] /, '').startsWith(w);
+    }) || null;
+  }
+
+  async function contextCopy(node) {
+    const target = node.querySelector('div,span') || node;
+    target.scrollIntoView({ block: 'center' });
+    const r = target.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, view: window, clientX: r.left + 10, clientY: r.top + r.height / 2, button: 2, buttons: 2 };
+    click(target); await sleep(400);
+    target.dispatchEvent(new MouseEvent('mousedown', o));
+    target.dispatchEvent(new MouseEvent('mouseup', o));
+    target.dispatchEvent(new MouseEvent('contextmenu', o));
+    const item = await waitFor(() => vis('td#menuItem_copyResource') ||
+      [...document.querySelectorAll('table.menuTable td.defaultMenuText')].find(td => visible(td) && /^copy$/i.test(txt(td))), 5000);
+    if (!item) return false;
+    click(item.querySelector('img') || item);
+    return true;
+  }
+
+  const waitScreen = (name, timeout = 30000) => waitFor(() => !ui.busyModal && screen() === name, timeout, 400);
+
+  // Lit les titres des pistes de la release ouverte (onglet Tracks)
+  function readTracks() {
+    const grid = gridAfter($id('img_delete_tracks'));
+    return rowsOf(grid).map(tr => {
+      const tds = [...tr.querySelectorAll('td')];
+      return { row: tr, title: txt(tds[2]) || txt(tds.find(td => txt(td) && !/^\d+$/.test(txt(td)))) };
+    }).filter(t => t.title);
+  }
+
+  async function deleteOldTracks() {
+    let removed = 0;
+    for (let i = 0; i < 12; i++) {
+      const tracks = readTracks();
+      if (!tracks.length) break;
+      const cell = tracks[0].row.querySelectorAll('td')[2] || tracks[0].row.querySelector('td');
+      click(cell); await sleep(400);
+      click($id('img_delete_tracks'));
+      const ok = await confirmIf(/remove (this|these) track/i, 5000);
+      if (!ok) break;
+      await waitIdle();
+      removed++;
+    }
+    return removed;
+  }
+
+  async function unlinkOldCover() {
+    const tab = $id('tabBar_releases_unsequenced_tab_div_a');
+    if (tab) { click(tab); await waitIdle(); await sleep(600); }
+    let removed = 0;
+    for (let i = 0; i < 4; i++) {
+      const row = [...document.querySelectorAll('tr.coverArtRow')].find(visible);
+      if (!row) break;
+      const trash = [...row.querySelectorAll('img')].find(im => /trash/i.test(im.getAttribute('src') || ''));
+      if (!trash) break;
+      click(trash);
+      const yes = await waitFor(() => vis('a#yesButton'), 5000);
+      if (!yes) break;
+      click(yes); await waitIdle(); removed++;
+    }
+    return removed;
+  }
+
+  async function removeSecondaryContributors() {
+    const tab = $id('tabBar_resources_contributors_tab_div_a');
+    if (tab) { click(tab); await waitIdle(); await sleep(500); }
+    const del = await waitFor(() => vis('img#img_secondary_contributors_delete'), 6000);
+    if (!del) return false;
+    for (let i = 0; i < 4; i++) {
+      const rows = rowsOf(gridAfter(del));
+      if (!rows.length) return true;
+      rows.forEach((tr, k) => {
+        const cell = tr.querySelectorAll('td')[2] || tr.querySelector('td');
+        const r = cell.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, view: window, clientX: r.left + 5, clientY: r.top + 5, ctrlKey: k > 0 };
+        cell.dispatchEvent(new MouseEvent('mousedown', o)); cell.dispatchEvent(new MouseEvent('mouseup', o)); cell.dispatchEvent(new MouseEvent('click', o));
+      });
+      await sleep(300);
+      click(del);
+      if (!await confirmIf(/remove these contributors/i, 5000)) return false;
+      await waitIdle();
+    }
+    return !rowsOf(gridAfter(vis('img#img_secondary_contributors_delete'))).length;
+  }
+
+  // ---------- Tout enchaîner ----------
+  async function runAll() {
+    const data = await get();
+    const job = data.job;
+    data.set = { ...data.set, autoSave: true };
+    if (!job.title || !job.artist) throw new Error('fiche incomplète : remplis au moins titre et artiste dans le panneau');
+    const say = (t) => { ui.status = { kind: 'run', text: t }; render(); };
+    const needScreen = async (name, msg) => {
+      if (await waitScreen(name, 25000)) return;
+      const r = await pause(msg, () => screen() === name);
+      if (r === 'stop') throw new Error('arrêté à ta demande');
+      if (screen() !== name && !(await waitScreen(name, 8000))) throw new Error('écran attendu non affiché');
+    };
+
+    // 1. Copie de la release de référence
+    if (screen() !== 'copyRelease') {
+      const r = await pause('Clic droit sur la dernière release de l’artiste → Copy. Je prends la suite dès que la fenêtre s’ouvre.', () => screen() === 'copyRelease');
+      if (r === 'stop') throw new Error('arrêté à ta demande');
+    }
+    say('1/6 · Copie de la release…');
+    await ACTIONS.copyRelease(data);
+
+    // 2. Release : titre, UPC, date + ménage de l'ancienne piste et de l'ancienne cover
+    await needScreen('release', 'Ouvre la release copiée (double-clic dans l’arbre). Je continue dès qu’elle s’affiche.');
+    await sleep(800);
+    const old = readTracks().map(t => t.title);
+    say('2/6 · Release : titre, UPC, date…');
+    await ACTIONS.release(data);
+    await needScreen('release', 'Rouvre la release copiée pour que je retire l’ancienne piste.');
+    if (norm($id('title') && $id('title').value) === norm(job.title)) {
+      say('2/6 · Retrait de l’ancienne piste et de l’ancienne cover…');
+      const nT = await deleteOldTracks();
+      const nC = await unlinkOldCover();
+      if (nT || nC) {
+        click(vis('img#img_saveReleaseButton'));
+        await confirmIf(/embargo/i, 5000);
+        await waitIdle();
+      }
+      await step('release', 'ok');
+      if (!nT && old.length) await step('release', 'ancienne piste à retirer à la main');
+    }
+
+    // 3. Copie de l'ancienne piste
+    say('3/6 · Copie de la piste « ' + (old[0] || '?') + ' »…');
+    const trackNode = old[0] ? await findResourceNode(old[0]) : null;
+    if (!(trackNode && await contextCopy(trackNode))) {
+      const r = await pause(`Clic droit sur la piste « ${old[0] || 'de l’ancienne sortie'} » (dossier RESOURCES) → Copy.`, () => screen() === 'copyResource');
+      if (r === 'stop') throw new Error('arrêté à ta demande');
+    }
+    await needScreen('copyResource', 'Ouvre la copie de la piste (clic droit → Copy).');
+    await ACTIONS.copyResource(data, 'audio');
+
+    // 4. Piste : ISRC, durée, auteurs, mix/master (pauses Identify)
+    await needScreen('resourceAudio', 'Ouvre la nouvelle piste « ' + job.title + ' ».');
+    say('4/6 · Piste : ISRC, durée, auteurs…');
+    await ACTIONS.resourceAudio(data);
+
+    // 5. Copie pour la cover
+    say('5/6 · Copie pour la cover…');
+    await sleep(1200);
+    const newNode = await findResourceNode(job.title);
+    if (!(newNode && await contextCopy(newNode))) {
+      const r = await pause(`Clic droit sur la piste « ${job.title} » → Copy, pour créer la cover.`, () => screen() === 'copyResource');
+      if (r === 'stop') throw new Error('arrêté à ta demande');
+    }
+    await needScreen('copyResource', 'Ouvre la copie de la piste pour la cover.');
+    await ACTIONS.copyResource(data, 'image');
+
+    // 6. Cover : format + retrait des contributeurs secondaires copiés
+    await needScreen('resourceImage', 'Ouvre la ressource cover « ' + job.title + ' ».');
+    say('6/6 · Cover : taille, format…');
+    const msg = await ACTIONS.resourceImage(data, 'cleanup');
+
+    // Fin : on rouvre la release pour la vérification et le Submit
+    const rel = findReleaseNode(job.title);
+    if (rel) {
+      const t = rel.querySelector('[id^="digital_"]') || rel;
+      click(t); await sleep(200);
+      t.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }));
+      await confirmIf(/.*/, 2500);
+    }
+    return 'Terminé ✓ ' + msg.replace(/ Le Submit Release reste à toi\./, '') + ' Vérifie la release « ' + job.title + ' », puis fais toi-même le Submit Release.';
+  }
+
   // ---------- Bandeau ----------
   const ui = { screen: null, busy: false, status: null, collapsed: false };
   let host, shadow;
@@ -332,13 +544,14 @@
   };
 
   function buttonsFor(s) {
+    const run = [['run', '▶ Lancer tout']];
     switch (s) {
-      case 'copyRelease': return [['copyRelease', 'Remplir la copie de release']];
+      case 'copyRelease': return [...run, ['copyRelease', 'Remplir la copie de release']];
       case 'release': return [['release', 'Remplir la release']];
       case 'copyResource': return [['copyResource:audio', 'Piste audio'], ['copyResource:image', 'Cover']];
       case 'resourceAudio': return [['resourceAudio', 'Remplir la piste + auteurs']];
       case 'resourceImage': return [['resourceImage', 'Remplir la cover']];
-      default: return [];
+      default: return run;
     }
   }
 
@@ -368,7 +581,7 @@
         button.g{background:#2d4a72;color:#fff}
       </style>
       <div class="b">
-        <div class="h" data-a="toggle"><span class="t">R2 Auto</span><span class="s">${s ? esc(SCREEN_LABELS[s]) : 'écran non reconnu'} ${ui.collapsed ? '▸' : '▾'}</span></div>
+        <div class="h" data-a="toggle"><span class="t">Auto R2</span><span class="s">${s ? esc(SCREEN_LABELS[s]) : 'écran non reconnu'} ${ui.collapsed ? '▸' : '▾'}</span></div>
         ${ui.collapsed ? '' : `
           ${st ? `<div class="m ${st.kind}">${esc(st.text)}</div>` : ''}
           <div class="r">
@@ -386,6 +599,18 @@
     if (a === 'stop') { stopRequested = true; if (pauseResolve) { const r = pauseResolve; pauseResolve = null; r('stop'); } return; }
     if (a === 'diag') return copyDiag();
     const [name, arg] = a.split(':');
+    if (name === 'run' && !ui.busy) {
+      ui.busy = true; stopRequested = false;
+      try {
+        const msg = await runAll();
+        ui.status = { kind: 'ok', text: msg };
+      } catch (e) {
+        ui.status = { kind: 'err', text: 'Arrêté : ' + (e && e.message) + '. Tu peux finir à la main, ou reprendre écran par écran avec les boutons du bandeau.' };
+      } finally {
+        ui.busy = false; ui.screen = screen(); render();
+      }
+      return;
+    }
     if (!ACTIONS[name] || ui.busy) return;
     ui.busy = true; stopRequested = false;
     ui.status = { kind: 'run', text: 'Remplissage en cours… ne touche pas à R2 un instant.' };
@@ -420,7 +645,7 @@
       }));
       if (rows.length > 400) break;
     }
-    const out = ['R2 AUTO — DIAGNOSTIC', 'Écran reconnu : ' + (ui.screen || 'aucun'), 'Message : ' + (ui.status ? ui.status.text : ''), '---', ...rows].join('\n');
+    const out = ['AUTO R2 — DIAGNOSTIC', 'Écran reconnu : ' + (ui.screen || 'aucun'), 'Message : ' + (ui.status ? ui.status.text : ''), '---', ...rows].join('\n');
     try { await navigator.clipboard.writeText(out); ui.status = { kind: 'ok', text: 'Diagnostic copié : colle-le à Claude.' }; }
     catch (e) { ui.status = { kind: 'err', text: 'Copie impossible : ' + e.message }; }
     render();
@@ -440,5 +665,5 @@
   ui.screen = screen();
   render();
 
-  window.__r2autoTest = { screen, ACTIONS, setCombo, setSelect, durationDigits };
+  window.__r2autoTest = { screen, ACTIONS, setCombo, setSelect, durationDigits, runAll, readTracks, findResourceNode };
 })();

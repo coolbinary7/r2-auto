@@ -1,4 +1,4 @@
-# R2 Auto
+# Auto R2
 
 Extension Firefox pour saisir dans **R2** les sorties reçues par mail (titre, artiste principal, date de sortie, auteurs, mix & master, territoire…).
 
@@ -6,8 +6,8 @@ Extension Firefox pour saisir dans **R2** les sorties reçues par mail (titre, a
 
 ## Contenu du dépôt
 
-- `recorder/` : **R2 Recorder** (phase 1). Il enregistre les clics, les saisies et la structure des formulaires R2 pendant une création faite à la main. L’export JSON sert à construire l’automatisation.
-- `extension/` : **R2 Auto** (0.1.0, en test). Il lit le mail et le WAV, puis remplit R2 écran par écran à partir d’une copie de la dernière sortie de l’artiste : release, piste (ISRC, durée, auteurs, mix/master) et cover. Le Submit final reste manuel.
+- `recorder/` : **R2 Recorder** (phase 1). Il enregistre les clics, les saisies et la structure des formulaires R2 pendant une création faite à la main. L’export JSON sert à construire l’automatisation (Auto R2).
+- `extension/` : **Auto R2** (0.2.0). Il lit le mail et le WAV, puis enchaîne tout dans R2 après un seul clic droit → Copy à partir d’une copie de la dernière sortie de l’artiste : release, piste (ISRC, durée, auteurs, mix/master) et cover. Le Submit final reste manuel.
 - `docs/` : page de téléchargement (GitHub Pages) et fichiers `.xpi`.
 
 ## Installer pour tester
