@@ -277,12 +277,33 @@
       await step('audio', job.duration ? 'ok' : 'durée manquante');
 
       // Contributeurs
-      const tab = $id('tabBar_resources_contributors_tab_div_a');
-      if (tab) { click(tab); await waitIdle(); }
-      const addWriter = await waitFor(() => vis('img#img_writers_composers_add'), 8000);
-      if (!addWriter) throw new Error('onglet Contributors introuvable');
+      // 1) Auto Work Creation d'abord : c'est elle qui fait apparaître la section des auteurs
       const autoWork = $id('automatic_work_flag');
-      if (autoWork && !autoWork.checked && !autoWork.disabled) { click(autoWork); await sleep(600); }
+      if (autoWork && !autoWork.checked && !autoWork.disabled) {
+        click(autoWork);
+        await sleep(400);
+        if (!autoWork.checked) { autoWork.checked = true; fire(autoWork, 'change'); const pg = autoWork.wrappedJSObject; try { if (pg && pg.onclick) pg.onclick.call(pg); } catch (e) {} }
+        await waitIdle();
+      }
+      // 2) Onglet Contributors
+      const openTab = async () => {
+        const tab = $id('tabBar_resources_contributors_tab_div_a');
+        if (!tab) return;
+        click(tab);
+        await sleep(500);
+        const pg = tab.wrappedJSObject;
+        try { if (!vis('img#img_writers_composers_add') && pg && pg.onclick) pg.onclick.call(pg, new window.wrappedJSObject.MouseEvent('click')); } catch (e) {}
+        await waitIdle();
+      };
+      await openTab();
+      let addWriter = await waitFor(() => vis('img#img_writers_composers_add'), 15000);
+      if (!addWriter) { await openTab(); addWriter = await waitFor(() => vis('img#img_writers_composers_add'), 10000); }
+      if (!addWriter && (job.writers || []).length) {
+        const r = await pause('Je ne vois pas le bouton « Add Writer/Composer ». Ouvre l’onglet Contributors (et coche Auto Work Creation si besoin), je continue dès qu’il apparaît.',
+          () => vis('img#img_writers_composers_add'));
+        if (r === 'stop') throw new Error('arrêté à ta demande');
+        ui.status = { kind: 'run', text: 'Je continue…' }; render();
+      }
 
       const already = () => norm(txt(vis('#contributor_grid') || vis('#resources_contributors_data') || document.body));
       for (const name of (job.writers || [])) {
@@ -774,8 +795,8 @@
       const pg = i.wrappedJSObject; const arr = $id(i.id + '_comboArrow');
       return `combo ${i.id} | onclick=${!!(pg && pg.onclick)} onfocus=${!!(pg && pg.onfocus)} onkeyup=${!!(pg && pg.onkeyup)} | flèche=${arr ? 'oui onclick=' + !!(arr.wrappedJSObject && arr.wrappedJSObject.onclick) + ' ' + (arr.getAttribute('onclick') || '').slice(0, 80) : 'non'}`;
     });
-    const out = ['AUTO R2 — DIAGNOSTIC (0.3.2)', 'Écran reconnu : ' + (ui.screen || 'aucun'), 'Message : ' + (ui.status ? ui.status.text : ''),
-      '--- listes', ...combos, '--- apparu à la dernière ouverture de liste', ...lastAdded, '---', ...rows.filter(r => !/digital_\d+_img/.test(r))].join('\n');
+    const out = ['AUTO R2 — DIAGNOSTIC (0.3.3)', 'Écran reconnu : ' + (ui.screen || 'aucun'), 'Message : ' + (ui.status ? ui.status.text : ''),
+      '--- listes', ...combos, '--- apparu à la dernière ouverture de liste', ...lastAdded, '---', ...rows.filter(r => !/(digital|resource|side|physical)_\d+(_\d+)?_img/.test(r))].join('\n');
     try { await navigator.clipboard.writeText(out); ui.status = { kind: 'ok', text: 'Diagnostic copié : colle-le à Claude.' }; }
     catch (e) { ui.status = { kind: 'err', text: 'Copie impossible : ' + e.message }; }
     render();
