@@ -37,6 +37,14 @@
     .step b{display:block;margin-bottom:6px}
     .step p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
     .step.now{border-color:var(--accent)}
+    .rec{width:100%;border-collapse:collapse;font-size:14px}
+    .rec th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:0 10px 8px 0}
+    .rec td{vertical-align:top;padding:12px 10px 12px 0;border-top:1px solid var(--line);line-height:1.55;color:#3d3f3a}
+    .rec td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+    .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px;white-space:nowrap}
+    .tag.ok{background:#d1fae5;color:#065f46}.tag.todo{background:#fef3c7;color:#92400e}
+    .scroll{overflow-x:auto}
+    @media(max-width:760px){.rec td:first-child{white-space:normal}}
     footer{color:var(--muted);font-size:12px;padding:30px 0 60px}
     @media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:36px}.side{border-left:0;padding-left:0}.grid{grid-template-columns:1fr}.card{padding:20px}}
   </style>
@@ -59,7 +67,7 @@
         <span class="state">En test</span>
         <a class="btn p" href="./downloads/Auto-R2-0.4.2.xpi">Télécharger Auto R2 0.4.2</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-0.1.0.xpi">R2 Recorder 0.1.0 (pour enregistrer un nouveau cas)</a>
-        <p class="note">Version 1 : artiste qui a déjà une sortie dans R2 (on part d’une copie). La création à partir de zéro viendra ensuite.</p>
+        <p class="note">Aujourd’hui : <b>single</b> d’un artiste qui a déjà une sortie dans R2. Album, deluxe, remix, snippet : voir <a href="#records" style="color:var(--accent)">les enregistrements à fournir</a>.</p>
       </aside>
     </section>
 
@@ -93,15 +101,39 @@
       <p class="note">Laisse l’onglet R2 affiché pendant le déroulé (2 à 4 minutes). Si le bandeau passe à l’orange, il explique le geste à faire et reprend dès que c’est fait. En cas d’arrêt : <b>Reprendre</b> repart de l’étape en cours. <b>Copier le diagnostic</b> contient maintenant le journal complet : colle-le à Claude s’il y a un souci.</p>
     </div>
 
-    <h2>Enregistrer une saisie (Recorder)</h2>
+    <h2 id="records">Enregistrements à fournir</h2>
+    <div class="card">
+      <p style="margin:0 0 16px;line-height:1.7;color:#3d3f3a">Auto R2 n’apprend un nouveau cas qu’à partir d’une saisie <b>faite à la main et enregistrée</b> avec le R2 Recorder. Un cas = un enregistrement. Voici ceux qu’il faut pour avancer.</p>
+      <div class="scroll">
+      <table class="rec">
+        <thead><tr><th>Cas</th><th>Ce qu’il faut enregistrer</th><th>État</th></tr></thead>
+        <tbody>
+          <tr><td>Single</td><td>Artiste qui a déjà une sortie : copie, piste, auteurs, mix/master, cover, rattachement.</td><td><span class="tag ok">Fait · automatisé</span></td></tr>
+          <tr><td>Single avec featuring</td><td>Un single où il faut <b>ajouter un artiste invité</b> qui n’était pas sur la sortie copiée (sur la release et sur la piste).</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>ISRC déjà fourni</td><td>Un single dont le label <b>donne l’ISRC</b> dans le mail (pas de génération automatique).</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Album</td><td>Un album complet, <b>au moins 3 pistes</b>, dans l’ordre de la tracklist. Si possible avec une piste en featuring.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>EP / single plusieurs titres</td><td>Une sortie de 2 à 6 titres, si la saisie diffère de celle d’un album (configuration, numérotation).</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Album deluxe</td><td>Une version deluxe d’un album <b>déjà dans R2</b> : anciennes pistes réutilisées + nouvelles pistes ajoutées, version title, nouvelle cover.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Remix</td><td>Un remix d’un titre <b>déjà dans R2</b> : version title, remixeur, lien avec l’œuvre d’origine, ISRC.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Snippet audio</td><td>Un extrait (configuration eSnippet Audio) : d’où part la piste, durée, ce qui change par rapport à un single.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Nouvel artiste</td><td>Une première sortie pour un artiste <b>sans aucune sortie dans R2</b> (rien à copier) : création du projet si besoin, de la release et de la piste à partir de zéro.</td><td><span class="tag todo">À fournir</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <h2>Faire un bon enregistrement</h2>
     <div class="card">
       <ol>
-        <li>Dans R2, clique sur l’icône, puis <b>● Démarrer l’enregistrement</b>.</li>
-        <li>Crée une sortie complète comme d’habitude : release, piste (Resource), crédits, rattachement, jusqu’au bout.</li>
-        <li>Quand une nouvelle fenêtre s’ouvre (recherche Identify…), clique <b>📸 Capturer l’écran actuel</b>.</li>
-        <li><b>■ Arrêter</b>, puis <b>⬇ Exporter</b> : un fichier <code>r2-enregistrement-….json</code> arrive dans tes Téléchargements.</li>
+        <li>Installe le <b>R2 Recorder</b> (bouton en haut de page, même installation qu’Auto R2).</li>
+        <li>Ouvre le projet du label dans R2, puis clique <b>● Démarrer l’enregistrement</b> <b>avant</b> le premier geste.</li>
+        <li>Fais la saisie <b>comme d’habitude, sans Auto R2</b>, du début jusqu’au Save final (le Submit peut être inclus). Un seul cas par enregistrement.</li>
+        <li>Quand une fenêtre s’ouvre (Identify, recherche…), clique <b>📸 Capturer l’écran actuel</b>.</li>
+        <li><b>■ Arrêter</b>, puis <b>⬇ Exporter</b> : le fichier <code>r2-enregistrement-….json</code> arrive dans les Téléchargements.</li>
+        <li>Envoie à <b>Ced</b>, en privé : le fichier, le <b>mail du label</b> correspondant (capture ou texte), et une ligne sur le cas (« album 8 titres », « remix de… »).</li>
       </ol>
-      <p class="note">Le Recorder ne fait que regarder : il ne modifie rien dans R2 et n’envoie rien tant que tu n’exportes pas.</p>
+      <p class="note"><b>Ne dépose pas le fichier sur GitHub ni dans un canal public.</b> Il contient des données internes : titres, artistes, ton nom d’utilisateur R2 et des adresses de session Identify. Il se transmet de la main à la main (mail interne, Teams).</p>
+      <p class="note">Si tu t’es trompé en cours de route, ce n’est pas grave : note-le dans ton message (« j’ai ouvert la copie par erreur vers la fin »), ça évite d’automatiser une erreur.</p>
     </div>
 
     <footer>Outil interne non officiel · Auto R2 0.4.2 · R2 Recorder 0.1.0</footer>
