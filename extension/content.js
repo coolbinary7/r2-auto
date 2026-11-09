@@ -62,23 +62,63 @@
     fire(el, 'input', 'change');
   }
 
-  // Liste maison de R2 (input.r2ComboInput + div#ID_option_N)
-  async function setCombo(id, wanted) {
+  // Liste maison de R2 (input.r2ComboInput + flèche ID_comboArrow + div#ID_option_N)
+  const lastAdded = [];
+  function comboOptions(id) {
+    const own = [...document.querySelectorAll(`[id^="${id}_option_"]`)];
+    const box = $id(id + '_options');
+    const inBox = box ? [...box.querySelectorAll('div, li, td, span')].filter(e => !e.children.length) : [];
+    return [...new Set([...own, ...inBox])].filter(e => visible(e) && txt(e));
+  }
+  function pressKey(el, key, extra = {}) {
+    const code = { ArrowDown: 40, Enter: 13, Escape: 27, Tab: 9 }[key] || 0;
+    ['keydown', 'keyup'].forEach(t => el.dispatchEvent(new KeyboardEvent(t, { key, code: key, keyCode: code, which: code, bubbles: true, cancelable: true, ...extra })));
+  }
+  async function setCombo(id, wanted, label) {
     const input = await waitFor(() => { const e = $id(id); return e && visible(e) ? e : null; }, 8000);
     if (!input) throw new Error(`champ ${id} introuvable`);
     const w = norm(wanted);
     if (norm(input.value) === w) return;
-    click(input);
     const pick = () => {
-      const opts = [...document.querySelectorAll(`[id^="${id}_option_"]`)].filter(visible);
+      const opts = comboOptions(id);
       if (!opts.length) return null;
       return opts.find(o => norm(txt(o)) === w) || opts.find(o => norm(txt(o)).startsWith(w)) || opts.find(o => norm(txt(o)).includes(w)) || 'none';
     };
-    const opt = await waitFor(pick, 6000);
-    if (!opt) throw new Error(`la liste ${id} ne s’ouvre pas`);
-    if (opt === 'none') { click(document.body); throw new Error(`« ${wanted} » absent de la liste ${id}`); }
-    click(opt);
-    await waitFor(() => norm(input.value).includes(w) || norm(input.value) === norm(txt(opt)), 3000);
+    // on note ce qui apparaît dans la page (pour le diagnostic si ça ne marche pas)
+    const mo = new MutationObserver(muts => {
+      for (const m of muts) for (const n of m.addedNodes) {
+        if (n.nodeType === 1 && lastAdded.length < 40) lastAdded.push(`${n.tagName.toLowerCase()}${n.id ? '#' + n.id : ''}${typeof n.className === 'string' && n.className ? '.' + n.className.split(' ')[0] : ''} « ${txt(n).slice(0, 40)} »`);
+      }
+    });
+    lastAdded.length = 0;
+    mo.observe(document.body, { childList: true, subtree: true });
+    const page = input.wrappedJSObject; // accès aux fonctions de R2 (Firefox)
+    const tries = [
+      () => click(input),
+      () => { const arr = $id(id + '_comboArrow'); if (arr) click(arr); },
+      () => { input.focus(); pressKey(input, 'ArrowDown'); },
+      () => { input.focus(); pressKey(input, 'ArrowDown', { altKey: true }); },
+      () => { if (page && typeof page.onclick === 'function') page.onclick.call(page, new window.wrappedJSObject.MouseEvent('click', { bubbles: true })); },
+      () => { if (page && typeof page.onfocus === 'function') page.onfocus.call(page, new window.wrappedJSObject.FocusEvent('focus')); },
+      () => { const arr = $id(id + '_comboArrow'); const pa = arr && arr.wrappedJSObject; if (pa && typeof pa.onclick === 'function') pa.onclick.call(pa, new window.wrappedJSObject.MouseEvent('click', { bubbles: true })); }
+    ];
+    let opt = null;
+    for (const t of tries) {
+      try { t(); } catch (e) { /* méthode suivante */ }
+      opt = await waitFor(pick, 1800, 150);
+      if (opt) break;
+    }
+    mo.disconnect();
+    if (opt && opt !== 'none') {
+      click(opt);
+      if (await waitFor(() => norm(input.value).includes(w) || norm(input.value) === norm(txt(opt)), 3000)) { await sleep(300); return; }
+    }
+    // Dernier recours : l'utilisateur choisit, et on reprend tout seul
+    const name = label || id;
+    const r = await pause(`Choisis « ${wanted} » dans la liste « ${name} » (je n’arrive pas à l’ouvrir), je continue tout de suite après.`,
+      () => norm(input.value) === w || norm(input.value).startsWith(w));
+    if (r === 'stop') throw new Error(`arrêté à ta demande (liste ${name})`);
+    ui.status = { kind: 'run', text: 'Je continue…' }; render();
     await sleep(300);
   }
 
@@ -160,9 +200,9 @@
   // ---------- Remplissages ----------
   const ACTIONS = {
     async copyRelease({ set }) {
-      await setCombo('configGroup_1', set.configGroup || 'e-Product');
+      await setCombo('configGroup_1', set.configGroup || 'e-Product', 'Config Group');
       await sleep(500);
-      await setCombo('configuration_1', set.configuration || 'eSingle Audio');
+      await setCombo('configuration_1', set.configuration || 'eSingle Audio', 'Configuration');
       await step('copyRelease', 'ok');
       if (set.autoSave !== false) {
         click(vis('a#saveButton[onclick*="copyRelease"]'));
@@ -202,7 +242,7 @@
       if (kind === 'image') {
         if (type) setSelect(type, 'Image');
         await sleep(700);
-        await setCombo('copy_resource_category_0', 'Cover Art');
+        await setCombo('copy_resource_category_0', 'Cover Art', 'Category');
       } else if (type) {
         setSelect(type, 'Audio');
         await sleep(300);
@@ -270,7 +310,7 @@
       if ($id('color_mode')) setSelect($id('color_mode'), set.coverColor || 'RGB');
       if ($id('height')) setText($id('height'), size);
       if ($id('width')) setText($id('width'), size);
-      if ($id('format')) await setCombo('format', (!set.v && set.coverFormat === 'JPEG') ? 'TIFF' : (set.coverFormat || 'TIFF'));
+      if ($id('format')) await setCombo('format', (!set.v && set.coverFormat === 'JPEG') ? 'TIFF' : (set.coverFormat || 'TIFF'), 'Format');
       let cleaned = false;
       if (arg === 'cleanup') cleaned = await removeSecondaryContributors();
       await step('image', 'ok');
@@ -292,9 +332,9 @@
     if (!nameInput) throw new Error('la fenêtre « New Contributor » ne s’ouvre pas');
     await sleep(400);
     if (group) {
-      await setCombo('role_group_0', group);
+      await setCombo('role_group_0', group, 'Role Group');
       await sleep(500);
-      if (role) await setCombo('role_0', role);
+      if (role) await setCombo('role_0', role, 'Role');
     }
     setText(nameInput, name);
     await sleep(300);
@@ -730,7 +770,12 @@
       }));
       if (rows.length > 400) break;
     }
-    const out = ['AUTO R2 — DIAGNOSTIC', 'Écran reconnu : ' + (ui.screen || 'aucun'), 'Message : ' + (ui.status ? ui.status.text : ''), '---', ...rows].join('\n');
+    const combos = [...document.querySelectorAll('input.r2ComboInput')].filter(visible).map(i => {
+      const pg = i.wrappedJSObject; const arr = $id(i.id + '_comboArrow');
+      return `combo ${i.id} | onclick=${!!(pg && pg.onclick)} onfocus=${!!(pg && pg.onfocus)} onkeyup=${!!(pg && pg.onkeyup)} | flèche=${arr ? 'oui onclick=' + !!(arr.wrappedJSObject && arr.wrappedJSObject.onclick) + ' ' + (arr.getAttribute('onclick') || '').slice(0, 80) : 'non'}`;
+    });
+    const out = ['AUTO R2 — DIAGNOSTIC (0.3.2)', 'Écran reconnu : ' + (ui.screen || 'aucun'), 'Message : ' + (ui.status ? ui.status.text : ''),
+      '--- listes', ...combos, '--- apparu à la dernière ouverture de liste', ...lastAdded, '---', ...rows.filter(r => !/digital_\d+_img/.test(r))].join('\n');
     try { await navigator.clipboard.writeText(out); ui.status = { kind: 'ok', text: 'Diagnostic copié : colle-le à Claude.' }; }
     catch (e) { ui.status = { kind: 'err', text: 'Copie impossible : ' + e.message }; }
     render();
