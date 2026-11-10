@@ -83,7 +83,7 @@
       <video id="tutoVid" controls preload="metadata" playsinline poster="./videos/tuto-auto-r2.jpg" aria-label="Tutoriel vidéo Auto R2"><source src="./videos/tuto-auto-r2.mp4" type="video/mp4"></video>
       <div class="chaps"><button data-t="4">Installer<span>0:04</span></button><button data-t="15">Préparer la fiche<span>0:15</span></button><button data-t="34">Lancer et Identify<span>0:34</span></button><button data-t="96">À retenir<span>1:36</span></button><a class="dl" href="./videos/tuto-auto-r2.mp4" download>Télécharger la vidéo</a></div>
     </div>
-    <script>document.querySelectorAll('.chaps button').forEach(b=>b.addEventListener('click',()=>{const v=document.getElementById('tutoVid');v.currentTime=+b.dataset.t;v.play();}));</script>
+    
 
     <h2>Nouveau dans la 0.4</h2>
     <div class="grid">
@@ -117,7 +117,7 @@
 
     <h2 id="records">Enregistrements à fournir</h2>
     <div class="card">
-      <p style="margin:0 0 16px;line-height:1.7;color:#3d3f3a">Auto R2 n’apprend un nouveau cas qu’à partir d’une saisie <b>faite à la main et enregistrée</b> avec le R2 Recorder. Un cas = un enregistrement. Voici ceux qu’il faut pour avancer.</p>
+      <p style="margin:0 0 16px;line-height:1.7;color:#3d3f3a"><a href="#tuto-recorder" style="color:var(--accent);font-weight:700">▶ Voir le tuto vidéo (1 min 30)</a> · Auto R2 n’apprend un nouveau cas qu’à partir d’une saisie <b>faite à la main et enregistrée</b> avec le R2 Recorder. Un cas = un enregistrement. Voici ceux qu’il faut pour avancer.</p>
       <div class="scroll">
       <table class="rec">
         <thead><tr><th>Cas</th><th>Ce qu’il faut enregistrer</th><th>État</th></tr></thead>
@@ -155,6 +155,12 @@
       <p class="note">Si une de ces applis n’est pas une page web (logiciel installé sur le PC), dis-le à Ced : une extension ne peut pas l’enregistrer.</p>
     </div>
 
+    <h2 id="tuto-recorder">Tuto vidéo : enregistrer une saisie</h2>
+    <div class="tuto">
+      <video controls preload="metadata" playsinline poster="./videos/tuto-recorder.jpg" aria-label="Tutoriel vidéo : enregistrer une saisie avec le Recorder"><source src="./videos/tuto-recorder.mp4" type="video/mp4"></video>
+      <div class="chaps"><button data-t="0">Pourquoi<span>0:00</span></button><button data-t="24">Installer<span>0:24</span></button><button data-t="37">Enregistrer<span>0:37</span></button><button data-t="68">Les règles<span>1:08</span></button><button data-t="78">Envoyer<span>1:18</span></button><a class="dl" href="./videos/tuto-recorder.mp4" download>Télécharger la vidéo</a></div>
+    </div>
+
     <h2>Faire un bon enregistrement</h2>
     <div class="card">
       <ol>
@@ -172,5 +178,6 @@
 
     <footer>Outil interne non officiel · Auto R2 0.4.2 · Recorder 0.2.0 (Firefox et Chrome)</footer>
   </main>
+  <script>document.querySelectorAll('.chaps button').forEach(b=>b.addEventListener('click',()=>{const v=b.closest('.tuto').querySelector('video');v.currentTime=+b.dataset.t;v.play();}));</script>
 </body>
 </html>
