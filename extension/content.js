@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.5.0';
+  const VERSION = '0.5.1';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -433,12 +433,16 @@
     return out;
   }
 
-  async function findResourceNode(title, { cover = false, codes = [], timeout = 60000 } = {}) {
+  async function findResourceNode(title, { cover = false, codes = [], timeout = 60000, oldest = false } = {}) {
     const w = norm(title);
+    codes = codes.filter(Boolean).map(c => String(c).toUpperCase());
     const pick = () => {
-      const list = resourceList().filter(r => r.cover === cover && norm(r.title) === w);
+      const all = resourceList().filter(r => r.cover === cover);
+      const byCode = codes.length ? all.find(r => codes.includes(String(r.code).toUpperCase())) : null;
+      if (byCode) return byCode;
+      const list = all.filter(r => norm(r.title) === w);
       if (!list.length) return null;
-      return list.find(r => codes.includes(r.code)) || list.sort((a, b) => b.id - a.id)[0];
+      return list.sort((a, b) => oldest ? a.id - b.id : b.id - a.id)[0];
     };
     let hit = pick();
     if (!hit || !visible(hit.el)) {
@@ -1124,8 +1128,20 @@
     const srcTitle = k === 1 ? job.title : snipTitle(job, k - 1);
     say(`Snippet ${k} · copie de « ${srcTitle} »…`);
     if (screen() !== 'copyResource') {
-      const node = await findResourceNode(srcTitle, { cover: false, timeout: 60000 });
-      if (node && k === 1) { run.srcIsrc = node.code; await saveRun(run); log('piste complète : ' + node.text); }
+      // Snippet 1 : on duplique la ressource de la piste complète, celle qui porte le work.
+      // ISRC donné → cette ressource-là ; sinon, parmi les ressources du même titre, la plus ancienne (l'originale, pas une copie).
+      let node;
+      if (k === 1) {
+        const same = resourceList().filter(r => !r.cover && norm(r.title) === norm(srcTitle));
+        if (same.length > 1) log(`${same.length} ressources « ${srcTitle} » : ${same.map(r => r.code).join(', ')}`);
+        node = await findResourceNode(srcTitle, { cover: false, timeout: 60000, codes: [job.srcIsrc], oldest: true });
+        if (job.srcIsrc && (!node || String(node.code).toUpperCase() !== job.srcIsrc)) {
+          log(`ressource ISRC ${job.srcIsrc} introuvable dans RESOURCES`);
+          node = null; run.srcIsrc = job.srcIsrc; await saveRun(run);
+          await until(() => screen() === 'copyResource', 500, `Je ne trouve pas la ressource ISRC ${job.srcIsrc} dans RESOURCES. Fais clic droit → Copy sur la ressource de la piste complète (celle qui a le work), je reprends.`);
+        }
+      } else node = await findResourceNode(srcTitle, { cover: false, timeout: 60000 });
+      if (node && k === 1) { run.srcIsrc = node.code; await saveRun(run); log('piste complète dupliquée : ' + node.text); }
       for (let i = 0; node && i < 2 && screen() !== 'copyResource'; i++) { await contextCopy(node.el); await waitScreen('copyResource', 8000); }
       await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur « ${srcTitle} » dans RESOURCES, je reprends.`);
     }
@@ -1176,16 +1192,36 @@
     const job = data.job;
     data.set = { ...data.set, autoSave: true };
     const set = data.set;
-    if (!job.title || !job.artist) throw new Error('fiche incomplète : remplis au moins le titre et l’artiste dans le panneau');
     const SNIP = job.mode === 'snippet';
+    if (SNIP) job.srcIsrc = String(job.srcIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (SNIP && !job.srcIsrc) throw new Error('mode Snippets : indique l’ISRC de la piste complète dans le panneau');
+    if (!job.artist || (!job.title && !SNIP)) throw new Error('fiche incomplète : remplis au moins le titre et l’artiste dans le panneau');
     WANT_SNIPPET = SNIP;
     if (SNIP && !snippetDurations(job).length) throw new Error('mode Snippets : indique au moins une durée de snippet dans le panneau');
     const TOTAL = SNIP ? 3 + snippetDurations(job).length : 7;
     const prev = data.state.run;
-    const run = (resume && prev && norm(prev.title) === norm(job.title)) ? prev : { title: job.title, stage: 0, old: [], oldCodes: [] };
+    const run = (resume && prev && (norm(prev.title) === norm(job.title) || (SNIP && prev.srcIsrc === job.srcIsrc))) ? prev : { title: job.title, stage: 0, old: [], oldCodes: [] };
     if (!resume) await browser.storage.local.set({ [STATE]: { steps: {}, run } });
     const done = async (n) => { run.stage = n; run.total = TOTAL; await saveRun(run); log(`étape ${n}/${TOTAL} terminée`); };
     log(`=== ${resume ? 'reprise à l’étape ' + (run.stage + 1) : 'départ'} : ${job.artist} – ${job.title}${SNIP ? ' · ' + snippetDurations(job).length + ' snippet(s)' : ''} (Auto R2 ${VERSION})`);
+
+    // Snippets : la piste complète est retrouvée par son ISRC ; son titre (tel qu'écrit dans R2) devient celui de la release et des snippets
+    if (SNIP && run.stage < 1 && !run.srcTitle) {
+      say(`Recherche de la piste ISRC ${job.srcIsrc} dans R2…`);
+      await ensureProject(job);
+      let src = await findResourceNode('', { cover: false, codes: [job.srcIsrc], timeout: 20000 });
+      if (!src) {
+        const r = await pause(`Je ne trouve pas l’ISRC ${job.srcIsrc} dans RESOURCES. Ouvre le projet du label où se trouve la piste complète (et déplie RESOURCES) : je continue tout seul.`,
+          () => !!(src = resourceList().find(x => !x.cover && String(x.code).toUpperCase() === job.srcIsrc)));
+        if (r === 'stop') throw new Stop();
+      }
+      if (!src) throw new Error(`piste ISRC ${job.srcIsrc} introuvable dans R2`);
+      if (job.title && job.title !== src.title) log(`titre du panneau « ${job.title} » remplacé par celui de R2 : « ${src.title} »`);
+      job.title = src.title;
+      run.title = src.title; run.srcTitle = src.title; run.srcIsrc = job.srcIsrc; await saveRun(run);
+      await browser.storage.local.set({ [JOB]: job });
+      log('piste complète trouvée : ' + src.text);
+    } else if (SNIP && run.srcTitle) job.title = run.srcTitle;
 
     // 1. Copie de la release modèle : la dernière sortie de l'artiste dans le projet
     if (run.stage < 1) {

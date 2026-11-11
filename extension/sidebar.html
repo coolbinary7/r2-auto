@@ -25,7 +25,8 @@
     </label>
     <div id="snipBox" hidden>
       <label>Durées des snippets <small>(un par ligne, dans l’ordre, ex. 0:59)</small><textarea id="f_snippets" rows="3" placeholder="0:59&#10;0:59&#10;0:20"></textarea></label>
-      <p class="hint">Le titre est celui de la piste complète (déjà dans R2). L’extension copie la dernière sortie snippet de l’artiste, crée « Titre - Snippet 1, 2, 3… » (ISRC, durée, onglet Clip) et les rattache.</p>
+      <label>ISRC de la piste complète <small>(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)</small><input id="f_srcIsrc" placeholder="ex. GB2DY2614066"></label>
+      <p class="hint">Pas besoin du titre exact : il est repris de la piste trouvée par l’ISRC. L’extension copie la dernière sortie snippet de l’artiste, duplique la ressource de la piste complète (le work suit), crée « Titre - Snippet 1, 2, 3… » (ISRC, durée, onglet Clip) et les rattache.</p>
     </div>
     <div id="confirm" class="warn" hidden></div>
     <label>Titre<input id="f_title"></label>

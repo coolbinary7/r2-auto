@@ -17,7 +17,7 @@ const DEFAULTS = {
   fixYears: true
 };
 
-const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets'];
+const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc'];
 const LABELS = { title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
@@ -32,6 +32,7 @@ function readJob() {
     genre: $('#f_genre').value.trim(),
     mode: $('#f_mode').value,
     snippets: $('#f_snippets').value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean),
+    srcIsrc: $('#f_srcIsrc').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
     isrcAuto: $('#f_isrcAuto').checked,
     toConfirm: currentConfirm,
     extra: currentExtra
@@ -51,6 +52,7 @@ function showJob(j) {
   $('#f_genre').value = j.genre || '';
   $('#f_mode').value = j.mode === 'snippet' ? 'snippet' : 'single';
   $('#f_snippets').value = (j.snippets || []).join('\n');
+  $('#f_srcIsrc').value = j.srcIsrc || '';
   showMode();
   $('#f_isrcAuto').checked = j.isrcAuto !== false;
   currentConfirm = j.toConfirm || [];
@@ -84,7 +86,7 @@ $('#parse').addEventListener('click', async () => {
     writers: p.writers, mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || '',
-    mode: keep.mode, snippets: keep.snippets,
+    mode: keep.mode, snippets: keep.snippets, srcIsrc: keep.srcIsrc,
     isrcAuto: p.isrcAuto, toConfirm: p.toConfirm,
     extra: { territory: p.territory, upc: p.upc, label: p.label }
   };
@@ -183,7 +185,10 @@ browser.storage.onChanged.addListener((ch) => { if (ch[STATE]) showState(ch[STAT
 async function sendCmd(name) {
   await save();
   const j = readJob();
-  if (!j.title || !j.artist) { $('#runMsg').textContent = 'Remplis au moins le titre et l’artiste.'; return; }
+  if (j.mode === 'snippet') {
+    if (!/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(j.srcIsrc || '')) { $('#runMsg').textContent = 'Mode Snippets : indique l’ISRC de la piste complète (12 caractères, ex. GB2DY2614066). Le titre sera repris de R2.'; return; }
+    if (!j.artist) { $('#runMsg').textContent = 'Remplis au moins l’artiste.'; return; }
+  } else if (!j.title || !j.artist) { $('#runMsg').textContent = 'Remplis au moins le titre et l’artiste.'; return; }
   const tabs = await browser.tabs.query({ url: '*://r2.umusic.net/*' }).catch(() => []);
   if (!tabs.length) { $('#runMsg').textContent = 'Ouvre d’abord R2 dans un onglet de cette fenêtre.'; return; }
   await browser.storage.local.set({ r2cmd: { name, t: Date.now() } });
