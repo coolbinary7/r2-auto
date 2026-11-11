@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.4.2';
+  const VERSION = '0.5.0';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -455,18 +455,19 @@
       if (parts.length < 3) continue;
       const artists = parts[2];
       const names = artists.split(/\s*(?:,|&|\/|\bfeat\.?|\bft\.?|\sx\s)\s*/i).map(norm).filter(Boolean);
-      out.push({ el, td: el.closest('td') || el, title: parts[0], upc: parts[1], artists, names, id: +((el.id.match(/digital_(\d+)/) || [])[1] || 0) });
+      out.push({ el, td: el.closest('td') || el, title: parts[0], upc: parts[1], artists, names, cfg: parts.slice(3).join(' | '), snippet: /snippet/i.test(parts.slice(3).join(' ')), id: +((el.id.match(/digital_(\d+)/) || [])[1] || 0) });
     }
     return out;
   }
+  let WANT_SNIPPET = false;
   let scanArtistReleases = function (artist, excludeTitle, feats) {
     const a = norm(artist);
     const wanted = [a, ...(feats || []).map(norm)].sort().join('|');
     return releaseList()
       .filter(r => r.names.includes(a) && !/\[copy\]/i.test(r.title) && !(excludeTitle && norm(r.title) === norm(excludeTitle)))
-      .map(r => ({ ...r, main: r.names[0] === a, exact: [...r.names].sort().join('|') === wanted }))
-      // mêmes artistes que la fiche d'abord (pas de featuring hérité), puis artiste principal, puis la plus récente
-      .sort((x, y) => (y.exact - x.exact) || (y.main - x.main) || (y.id - x.id));
+      .map(r => ({ ...r, main: r.names[0] === a, exact: [...r.names].sort().join('|') === wanted, kind: r.snippet === WANT_SNIPPET }))
+      // même type de sortie (single / snippet), mêmes artistes que la fiche, artiste principal, puis la plus récente
+      .sort((x, y) => (y.kind - x.kind) || (y.exact - x.exact) || (y.main - x.main) || (y.id - x.id));
   };
   async function findLatestArtistRelease(artist, excludeTitle, feats) {
     const scan = scanArtistReleases;
@@ -481,7 +482,7 @@
     return list[0] || null;
   }
   const newReleaseNode = (job, notId) => releaseList()
-    .filter(r => norm(r.title) === norm(job.title) && r.id !== notId && (!job.artist || r.names.includes(norm(job.artist))))
+    .filter(r => norm(r.title) === norm(job.title) && r.id !== notId && (!job.artist || r.names.includes(norm(job.artist))) && (job.mode !== 'snippet' || r.snippet))
     .sort((a, b) => b.id - a.id)[0] || null;
 
   // Clic droit → Copy
@@ -845,10 +846,10 @@
   }
 
   const ACTIONS = {
-    async copyRelease({ set }) {
+    async copyRelease({ job, set }) {
       await setCombo('configGroup_1', set.configGroup || 'e-Product', 'Config Group');
       await sleep(600);
-      await setCombo('configuration_1', set.configuration || 'eSingle Audio', 'Configuration');
+      await setCombo('configuration_1', job && job.mode === 'snippet' ? (set.snippetConfiguration || 'eSnippet Audio') : (set.configuration || 'eSingle Audio'), 'Configuration');
       await step('copyRelease', 'ok');
       if (set.autoSave === false) return 'Rempli. Clique « Save » pour créer la copie.';
       const save = () => vis('a#saveButton[onclick*="copyRelease"]');
@@ -891,7 +892,7 @@
       }
       const nT = await deleteOldTracks(null);
       const left = readTracks().filter(t => !t.isNew).length;
-      const nC = await unlinkOldCover();
+      const nC = job.mode === 'snippet' ? 0 : await unlinkOldCover();
       log(`ménage : ${nT} piste(s), ${nC} cover retirée(s)`);
       if (set.autoSave !== false) await saveAndCheck('img#img_saveReleaseButton', 'la release');
       await step('release', left ? 'ancienne piste à retirer à la main' : 'ok');
@@ -1044,7 +1045,7 @@
     const code = (d[PROJ] || {})[norm(job.artist)];
     const link = code && projectLinks().find(a => txt(a) === code);
     if (!link) return;
-    say(`1/7 · Ouverture du projet ${code}…`);
+    say(`1/${TOTAL} · Ouverture du projet ${code}…`);
     click(link);
     await sleep(800);
     await waitIdle();
@@ -1059,6 +1060,115 @@
     await browser.storage.local.set({ [PROJ]: map });
   }
 
+
+  // ---------- Snippets (enregistrement du 11/11 : copie de la piste complète, onglet Clip, glisser dans Tracks) ----------
+  const snipTitle = (job, k) => `${job.title} - Snippet ${k}`;
+  const snipName = (k) => `Snippet ${k}`;
+  function snippetDurations(job) {
+    return (job.snippets || []).map(d => String(d).trim()).filter(Boolean);
+  }
+  async function fillCopySnippet(job, k) {
+    const type = $id('copy_resource_type_0');
+    if (type && visible(type)) { try { setSelect(type, 'Audio'); } catch (e) { /* déjà Audio */ } await sleep(400); }
+    const t = $id('copy_resource_title_0');
+    setText(t, job.title);
+    const v = $id('copy_resource_version_title_0');
+    if (v) { setText(v, snipName(k)); await sleep(200); if (v.value !== snipName(k)) setText(v, snipName(k)); }
+    else log('champ Version Title absent de la copie : il sera rempli sur la ressource');
+    await sleep(300);
+    if (t.value !== job.title) setText(t, job.title);
+    const save = () => vis('a#saveButton[onclick*="copyResource"]');
+    click(save());
+    await waitFor(() => !save(), 20000);
+    await waitIdle();
+  }
+  async function fillSnippet(job, k, srcIsrc) {
+    const dur = snippetDurations(job)[k - 1];
+    // ISRC : 3rd Party + Auto-Generate (la copie repart d'un ISRC existant)
+    const third = $id('isrc_id_type_third');
+    if (third) {
+      check(third, true); await sleep(600);
+      const auto = await waitFor(() => { const a = $id('auto_gen'); return a && visible(a) && !a.disabled ? a : null; }, 4000);
+      if (auto) { check(auto, true); await sleep(500); } else log('case Auto-Generate indisponible');
+    }
+    const d = await waitFor(() => { const e = $id('duration'); return e && visible(e) && !e.disabled ? e : null; }, 5000);
+    if (d && dur) {
+      setText(d, durationDigits(dur)); await sleep(500);
+      if (seconds(d.value) !== seconds(dur)) setText(d, durationFull(dur));
+      log(`snippet ${k} : durée ${d.value}`);
+    } else log(`snippet ${k} : durée non saisie`);
+    const vt = $id('version_title');
+    if (vt && norm(vt.value) !== norm(snipName(k))) { setText(vt, snipName(k)); await sleep(300); }
+    // onglet Clip : ISRC de la piste complète + type Snippet
+    await openTab('tabBar_resources_mobile_tab_div_a', () => vis('input#mobile_resource_isrc') || vis('select#clip_type'), 'Clip');
+    await sleep(500);
+    const mi = $id('mobile_resource_isrc');
+    if (mi && srcIsrc && mi.value.replace(/\W/g, '') !== srcIsrc.replace(/\W/g, '')) {
+      setText(mi, srcIsrc);
+      await waitFor(() => /validateSuccess/.test(mi.className) || ($id('mobile_resource_name') && $id('mobile_resource_name').value), 8000);
+      await waitIdle();
+    }
+    if (!srcIsrc) notes.push(`Snippet ${k} : ISRC de la piste complète introuvable, à saisir dans l’onglet Clip`);
+    const ct = $id('clip_type');
+    if (ct) { try { setSelect(ct, 'Snippet'); } catch (e) { log('Clip Type : ' + e.message); } }
+    const vt2 = $id('version_title');
+    if (vt2 && norm(vt2.value) !== norm(snipName(k))) setText(vt2, snipName(k));
+    await sleep(400);
+    await saveAndCheck('img#img_saveActionIcon', `le snippet ${k}`);
+    const isrc = $id('isrc_resource_id') && $id('isrc_resource_id').value;
+    if (isrc) log(`snippet ${k} : ISRC ${isrc}`);
+  }
+  async function makeSnippet(job, run, k) {
+    // déjà créé (reprise) ?
+    if (resourceList().some(r => !r.cover && norm(r.title) === norm(snipTitle(job, k)))) { log(`snippet ${k} déjà présent`); return; }
+    const srcTitle = k === 1 ? job.title : snipTitle(job, k - 1);
+    say(`Snippet ${k} · copie de « ${srcTitle} »…`);
+    if (screen() !== 'copyResource') {
+      const node = await findResourceNode(srcTitle, { cover: false, timeout: 60000 });
+      if (node && k === 1) { run.srcIsrc = node.code; await saveRun(run); log('piste complète : ' + node.text); }
+      for (let i = 0; node && i < 2 && screen() !== 'copyResource'; i++) { await contextCopy(node.el); await waitScreen('copyResource', 8000); }
+      await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur « ${srcTitle} » dans RESOURCES, je reprends.`);
+    }
+    await fillCopySnippet(job, k);
+    await until(() => screen() === 'resourceAudio' && titleIs(job.title), 60000, `Ouvre la nouvelle ressource « ${snipTitle(job, k)} » (double-clic dans RESOURCES), je continue ensuite.`);
+    await waitIdle();
+    say(`Snippet ${k} · ISRC, durée, onglet Clip…`);
+    await fillSnippet(job, k, run.srcIsrc);
+  }
+  async function linkSnippets(job, run, n) {
+    await showTracks();
+    await sleep(600);
+    for (let k = 1; k <= n; k++) {
+      const node = await findResourceNode(snipTitle(job, k), { cover: false, timeout: 30000 });
+      const inTracks = () => readTracks().some(t => (node && t.isrc && t.isrc === node.code) || norm(t.title).includes(norm(snipName(k))));
+      if (inTracks()) { log(`snippet ${k} déjà rattaché`); continue; }
+      const before = readTracks().length;
+      say(`Rattachement du snippet ${k} à la release…`);
+      const manual = `Glisse « ${node ? node.text : snipTitle(job, k)} » depuis RESOURCES jusque dans la grille des pistes, après les précédents. Je continue ensuite.`;
+      if (node) await dropInto(node, () => dropTarget(tracksBox()), () => readTracks().length > before || inTracks(), `snippet ${k}`, manual);
+      else await until(() => readTracks().length > before, 500, manual);
+      await sleep(500);
+    }
+    await saveAndCheck('img#img_saveReleaseButton', 'la release');
+  }
+  async function runSnippetStages(job, run, done, total) {
+    const durs = snippetDurations(job), n = durs.length;
+    for (let k = 1; k <= n; k++) {
+      if (run.stage < 2 + k) { await makeSnippet(job, run, k); await done(2 + k); }
+    }
+    if (run.stage < total) {
+      say(`${total}/${total} · Retour sur la release…`);
+      if (!(screen() === 'release' && titleIs(job.title))) {
+        const rel = newReleaseNode(job, run.modelId || 0);
+        if (rel) { log('ouverture de la release ' + rel.id); await openNode(rel.el); }
+        await until(() => screen() === 'release' && titleIs(job.title), 45000, `Ouvre la release « ${job.title} » (eSnippet Audio), je continue ensuite.`);
+      }
+      await waitIdle(); await sleep(800);
+      await linkSnippets(job, run, n);
+      await done(total);
+    }
+  }
+
   // ---------- Tout enchaîner ----------
   const STAGES = ['copie de la release', 'release', 'copie de la piste', 'piste', 'copie pour la cover', 'cover', 'rattachement'];
   async function runAll(resume) {
@@ -1067,16 +1177,20 @@
     data.set = { ...data.set, autoSave: true };
     const set = data.set;
     if (!job.title || !job.artist) throw new Error('fiche incomplète : remplis au moins le titre et l’artiste dans le panneau');
+    const SNIP = job.mode === 'snippet';
+    WANT_SNIPPET = SNIP;
+    if (SNIP && !snippetDurations(job).length) throw new Error('mode Snippets : indique au moins une durée de snippet dans le panneau');
+    const TOTAL = SNIP ? 3 + snippetDurations(job).length : 7;
     const prev = data.state.run;
     const run = (resume && prev && norm(prev.title) === norm(job.title)) ? prev : { title: job.title, stage: 0, old: [], oldCodes: [] };
     if (!resume) await browser.storage.local.set({ [STATE]: { steps: {}, run } });
-    const done = async (n) => { run.stage = n; await saveRun(run); log(`étape ${n}/7 terminée (${STAGES[n - 1]})`); };
-    log(`=== ${resume ? 'reprise à l’étape ' + (run.stage + 1) : 'départ'} : ${job.artist} – ${job.title} (Auto R2 ${VERSION})`);
+    const done = async (n) => { run.stage = n; run.total = TOTAL; await saveRun(run); log(`étape ${n}/${TOTAL} terminée`); };
+    log(`=== ${resume ? 'reprise à l’étape ' + (run.stage + 1) : 'départ'} : ${job.artist} – ${job.title}${SNIP ? ' · ' + snippetDurations(job).length + ' snippet(s)' : ''} (Auto R2 ${VERSION})`);
 
     // 1. Copie de la release modèle : la dernière sortie de l'artiste dans le projet
     if (run.stage < 1) {
       if (screen() !== 'copyRelease') {
-        say(`1/7 · Recherche de la dernière sortie de ${job.artist}…`);
+        say(`1/${TOTAL} · Recherche de la dernière sortie de ${job.artist}…`);
         await ensureProject(job);
         let model = await findLatestArtistRelease(job.artist, job.title, job.feats);
         if (!model) {
@@ -1093,7 +1207,7 @@
         if (model && screen() !== 'copyRelease') {
           run.modelTitle = model.title; run.modelId = model.id;
           if (!model.exact) { run.modelArtists = model.artists; log('modèle avec d’autres artistes : ' + model.artists); }
-          say(`1/7 · Modèle : « ${model.title} » (${model.artists}). Copie…`);
+          say(`1/${TOTAL} · Modèle : « ${model.title} » (${model.artists}). Copie…`);
           await sleep(600);
           for (let i = 0; i < 2 && screen() !== 'copyRelease'; i++) {
             await contextCopy(model.el);
@@ -1104,20 +1218,27 @@
           ? `Je n’ai pas réussi à ouvrir la copie de « ${model.title} ». Fais clic droit dessus → Copy, je prends la suite.`
           : 'Fais clic droit → Copy sur la release à copier, je prends la suite.');
       }
-      say('1/7 · Copie de la release…');
+      say(`1/${TOTAL} · Copie de la release…`);
       await ACTIONS.copyRelease(data);
       await done(1);
     }
 
     // 2. Release copiée : titre, UPC, date + retrait de l'ancienne piste et de l'ancienne cover
     if (run.stage < 2) {
-      say('2/7 · Ouverture de la release copiée…');
+      say(`2/${TOTAL} · Ouverture de la release copiée…`);
       await until(() => screen() === 'release' && (/\[copy\]/i.test(titleValue()) || titleIs(job.title)), 60000,
         'Ouvre la release copiée (« … [Copy] », double-clic dans l’arbre). Je continue dès qu’elle s’affiche.');
       await waitIdle();
-      say('2/7 · Release : titre, UPC, date, retrait de l’ancienne piste et de l’ancienne cover…');
+      say(`2/${TOTAL} · Release : titre, UPC, date, retrait de l’ancienne piste${SNIP ? '' : ' et de l’ancienne cover'}…`);
       await ACTIONS.release(data, null, run);
       await done(2);
+    }
+
+    if (SNIP) {
+      await runSnippetStages(job, run, done, TOTAL);
+      await rememberProject(job);
+      const extraS = notes.length ? ' R2 a signalé : ' + notes.map(n => '« ' + n.slice(0, 120) + ' »').join(' ; ') + '.' : '';
+      return `Terminé ✓ release snippet « ${job.title} » : ${snippetDurations(job).length} snippet(s) créés (ISRC, durée, onglet Clip) et rattachés. La cover est celle de la sortie copiée : vérifie-la.${extraS} Fais toi-même le Submit Release.`;
     }
 
     // 3. Copie de l'ancienne piste (clic droit → Copy dans RESOURCES)
@@ -1221,7 +1342,7 @@
 
   function buttonsFor(s) {
     const b = [['run', '▶ Lancer tout']];
-    if (ui.run && ui.run.stage > 0 && ui.run.stage < 7 && norm(ui.run.title) === norm(ui.jobTitle)) b.push(['resume', `↻ Reprendre (étape ${ui.run.stage + 1}/7)`]);
+    if (ui.run && ui.run.stage > 0 && ui.run.stage < (ui.run.total || 7) && norm(ui.run.title) === norm(ui.jobTitle)) b.push(['resume', `↻ Reprendre (étape ${ui.run.stage + 1}/${ui.run.total || 7})`]);
     switch (s) {
       case 'copyRelease': b.push(['copyRelease', 'Remplir la copie']); break;
       case 'release': b.push(['release', 'Remplir la release'], ['link', 'Rattacher piste + cover']); break;

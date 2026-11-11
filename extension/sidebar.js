@@ -5,6 +5,7 @@ const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state';
 const DEFAULTS = {
   configGroup: 'e-Product',
   configuration: 'eSingle Audio',
+  snippetConfiguration: 'eSnippet Audio',
   mixGroup: 'Mastering Engineers',
   mixRole: 'Mastering Engineer',
   coverSize: '3000',
@@ -16,7 +17,7 @@ const DEFAULTS = {
   fixYears: true
 };
 
-const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto'];
+const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets'];
 const LABELS = { title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
@@ -29,6 +30,8 @@ function readJob() {
     mix: $('#f_mix').value.split('\n').map(s => s.trim()).filter(Boolean),
     duration: $('#f_duration').value.trim(),
     genre: $('#f_genre').value.trim(),
+    mode: $('#f_mode').value,
+    snippets: $('#f_snippets').value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean),
     isrcAuto: $('#f_isrcAuto').checked,
     toConfirm: currentConfirm,
     extra: currentExtra
@@ -46,6 +49,9 @@ function showJob(j) {
   $('#f_mix').value = (j.mix || []).join('\n');
   $('#f_duration').value = j.duration || '';
   $('#f_genre').value = j.genre || '';
+  $('#f_mode').value = j.mode === 'snippet' ? 'snippet' : 'single';
+  $('#f_snippets').value = (j.snippets || []).join('\n');
+  showMode();
   $('#f_isrcAuto').checked = j.isrcAuto !== false;
   currentConfirm = j.toConfirm || [];
   currentExtra = j.extra || {};
@@ -63,6 +69,9 @@ function showJob(j) {
   $('#extra').textContent = extra.join(' · ');
 }
 
+function showMode() { $('#snipBox').hidden = $('#f_mode').value !== 'snippet'; }
+$('#f_mode').addEventListener('change', () => { showMode(); save(); });
+
 async function save() {
   await browser.storage.local.set({ [JOB]: readJob() });
 }
@@ -75,6 +84,7 @@ $('#parse').addEventListener('click', async () => {
     writers: p.writers, mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || '',
+    mode: keep.mode, snippets: keep.snippets,
     isrcAuto: p.isrcAuto, toConfirm: p.toConfirm,
     extra: { territory: p.territory, upc: p.upc, label: p.label }
   };
@@ -118,7 +128,7 @@ $('#wav').addEventListener('change', async (e) => {
 });
 
 // ---------- Réglages ----------
-const SETTING_IDS = ['configGroup', 'configuration', 'mixGroup', 'mixRole', 'coverSize', 'coverDpi', 'coverColor', 'coverFormat'];
+const SETTING_IDS = ['configGroup', 'configuration', 'snippetConfiguration', 'mixGroup', 'mixRole', 'coverSize', 'coverDpi', 'coverColor', 'coverFormat'];
 function showSettings(s) {
   SETTING_IDS.forEach(k => { $('#s_' + k).value = s[k] ?? DEFAULTS[k]; });
   $('#s_autoSave').checked = s.autoSave !== false;

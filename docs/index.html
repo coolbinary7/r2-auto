@@ -68,13 +68,13 @@
       </div>
       <aside class="side">
         <div class="side-label">État du projet</div>
-        <div class="ver">Auto R2 0.4.2</div>
+        <div class="ver">Auto R2 0.5.0</div>
         <span class="state">En test</span>
-        <a class="btn p" href="./downloads/Auto-R2-0.4.2.xpi">Télécharger Auto R2 0.4.2</a>
+        <a class="btn p" href="./downloads/Auto-R2-0.5.0.xpi">Télécharger Auto R2 0.5.0</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-0.2.0.xpi">Recorder 0.2.0 pour Firefox (R2)</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Chrome-0.2.0.zip">Recorder 0.2.0 pour Chrome (RWS, CWS, AIT)</a>
         <a class="btn" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="#tuto">▶ Voir le tuto vidéo (2 min)</a>
-        <p class="note">Aujourd’hui : <b>single</b> d’un artiste qui a déjà une sortie dans R2. Album, deluxe, remix, snippet : voir <a href="#records" style="color:var(--accent)">les enregistrements à fournir</a>.</p>
+        <p class="note">Aujourd’hui : <b>single</b> et <b>snippets</b> d’un artiste qui a déjà une sortie dans R2. Album, deluxe, remix, snippet : voir <a href="#records" style="color:var(--accent)">les enregistrements à fournir</a>.</p>
       </aside>
     </section>
 
@@ -84,6 +84,16 @@
       <div class="chaps"><button data-t="4">Installer<span>0:04</span></button><button data-t="15">Préparer la fiche<span>0:15</span></button><button data-t="34">Lancer et Identify<span>0:34</span></button><button data-t="96">À retenir<span>1:36</span></button><a class="dl" href="./videos/tuto-auto-r2.mp4" download>Télécharger la vidéo</a></div>
     </div>
     
+
+    <h2>Nouveau dans la 0.5 : les snippets</h2>
+    <div class="card">
+      <ol>
+        <li>Dans le panneau, choisis <b>Type de sortie : Snippets</b>. Titre = celui de la piste complète, déjà dans R2.</li>
+        <li>Indique les <b>durées des snippets</b>, une par ligne, dans l’ordre (ex. <code>0:59</code>, <code>0:59</code>, <code>0:20</code>).</li>
+        <li><b>▶ Lancer dans R2</b> : copie de la dernière sortie snippet de l’artiste (e-Product / eSnippet Audio), titre, UPC Auto, date, retrait des anciens snippets, puis pour chaque extrait : copie de la piste, « Snippet 1, 2, 3… », ISRC 3rd Party + Auto-Generate, durée, onglet Clip (ISRC de la piste complète, type Snippet). Enfin, rattachement dans l’ordre et Save.</li>
+      </ol>
+      <p class="note">La cover de la sortie copiée est gardée, comme dans l’enregistrement : vérifie-la avant le Submit.</p>
+    </div>
 
     <h2>Nouveau dans la 0.4</h2>
     <div class="grid">
@@ -129,7 +139,7 @@
           <tr><td>EP / single plusieurs titres</td><td>Une sortie de 2 à 6 titres, si la saisie diffère de celle d’un album (configuration, numérotation).</td><td><span class="tag todo">À fournir</span></td></tr>
           <tr><td>Album deluxe</td><td>Une version deluxe d’un album <b>déjà dans R2</b> : anciennes pistes réutilisées + nouvelles pistes ajoutées, version title, nouvelle cover.</td><td><span class="tag todo">À fournir</span></td></tr>
           <tr><td>Remix</td><td>Un remix d’un titre <b>déjà dans R2</b> : version title, remixeur, lien avec l’œuvre d’origine, ISRC.</td><td><span class="tag todo">À fournir</span></td></tr>
-          <tr><td>Snippet audio</td><td>Un extrait (configuration eSnippet Audio) : d’où part la piste, durée, ce qui change par rapport à un single.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Snippet audio</td><td>Plusieurs extraits d’une piste déjà dans R2 (configuration eSnippet Audio), à partir de la dernière sortie snippet de l’artiste.</td><td><span class="tag ok">Reçu · automatisé (0.5)</span></td></tr>
           <tr><td>Nouvel artiste</td><td>Une première sortie pour un artiste <b>sans aucune sortie dans R2</b> (rien à copier) : création du projet si besoin, de la release et de la piste à partir de zéro.</td><td><span class="tag todo">À fournir</span></td></tr>
         </tbody>
       </table>
@@ -176,7 +186,7 @@
       <p class="note">Si tu t’es trompé en cours de route, ce n’est pas grave : note-le dans ton message (« j’ai ouvert la copie par erreur vers la fin »), ça évite d’automatiser une erreur.</p>
     </div>
 
-    <footer>Outil interne non officiel · Auto R2 0.4.2 · Recorder 0.2.0 (Firefox et Chrome)</footer>
+    <footer>Outil interne non officiel · Auto R2 0.5.0 · Recorder 0.2.0 (Firefox et Chrome)</footer>
   </main>
   <script>document.querySelectorAll('.chaps button').forEach(b=>b.addEventListener('click',()=>{const v=b.closest('.tuto').querySelector('video');v.currentTime=+b.dataset.t;v.play();}));</script>
 </body>

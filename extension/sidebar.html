@@ -7,7 +7,7 @@
 </head>
 <body>
   <header>
-    <h1>Auto R2 <span>0.4</span></h1>
+    <h1>Auto R2 <span>0.5</span></h1>
     <p class="sub">Le mail de mise en ligne, saisi dans R2.</p>
   </header>
 
@@ -20,6 +20,13 @@
 
   <section class="card">
     <h2>2. Vérifie la fiche</h2>
+    <label>Type de sortie
+      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option></select>
+    </label>
+    <div id="snipBox" hidden>
+      <label>Durées des snippets <small>(un par ligne, dans l’ordre, ex. 0:59)</small><textarea id="f_snippets" rows="3" placeholder="0:59&#10;0:59&#10;0:20"></textarea></label>
+      <p class="hint">Le titre est celui de la piste complète (déjà dans R2). L’extension copie la dernière sortie snippet de l’artiste, crée « Titre - Snippet 1, 2, 3… » (ISRC, durée, onglet Clip) et les rattache.</p>
+    </div>
     <div id="confirm" class="warn" hidden></div>
     <label>Titre<input id="f_title"></label>
     <label>Artiste principal<input id="f_artist"></label>
@@ -57,6 +64,7 @@
     <summary>Réglages</summary>
     <label>Config Group<input id="s_configGroup"></label>
     <label>Configuration<input id="s_configuration"></label>
+    <label>Configuration (snippets)<input id="s_snippetConfiguration"></label>
     <div class="row2">
       <label>Groupe mix/master<input id="s_mixGroup"></label>
       <label>Rôle mix/master<input id="s_mixRole"></label>
