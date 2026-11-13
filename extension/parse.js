@@ -44,6 +44,7 @@
     ['artist', /^(artiste principal|artiste|main artist|artist|artiste\(s\))$/],
     ['mode', /^(type de sortie|type|format|type de release)$/],
     ['version', /^(version|version title|titre de version)$/],
+    ['snippets', /^(durees?( des (snippets?|extraits?))?|snippets?|extraits?|durees? snippets?)$/],
     ['producers', /^(producteurs?|prod|producers?|beatmakers?|realisateurs?|arrangeurs?)$/],
     ['feats', /^(featuring|feat|feats|ft|artiste invite|artistes invites|invite\(s\)|featured artist)s?$/],
     ['date', /^(date de sortie|sortie|release date|date)$/],
@@ -68,6 +69,8 @@
       // « 1er prod Shado », « 2e prod Nokuji » → Shado, Nokuji
       const v = value.replace(/^\s*\d+\s*(?:er|ere|re|e|eme|ème|nd|nde)?\s*(?:prod(?:ucteur|uction)?|beat(?:maker)?)?\s*[:\-–]?\s*/i, '');
       out[field] = out[field].concat(splitNames(v));
+    } else if (field === 'snippets') {
+      out.snippets = out.snippets.concat((value.match(/\d{1,2}:\d{2}/g) || []));
     } else if (field === 'date') {
       out.date = out.date || parseDate(value);
     } else if (field === 'isrc') {
@@ -94,7 +97,7 @@
   }
 
   function parseMail(text) {
-    const out = { title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
+    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
     // mise en forme ajoutée par Copilot / ChatGPT / Outlook : **gras**, __gras__, # titres, `code`
     text = decode(text).replace(/\*\*|__|`/g, '').replace(/^\s*#{1,6}\s*/gm, '').replace(/\u00a0/g, ' ');
     if (!parseTable(text, out)) {

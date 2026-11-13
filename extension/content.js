@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.5.3';
+  const VERSION = '0.5.4';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();

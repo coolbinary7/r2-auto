@@ -30,3 +30,4 @@ button.wide{width:100%}
 #steps div{padding:2px 0}
 #steps .ok{color:var(--green)}
 #steps .err{color:var(--red)}
+[hidden]{display:none!important}

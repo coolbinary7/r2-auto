@@ -18,7 +18,7 @@ const DEFAULTS = {
 };
 
 const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc'];
-const LABELS = { title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', mix: 'mix & master', duration: 'durée' };
+const LABELS = { isrc: 'ISRC de la piste complète', snippets: 'durées des snippets', title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
   return {
@@ -55,7 +55,7 @@ function showJob(j) {
   $('#f_srcIsrc').value = j.srcIsrc || '';
   showMode();
   $('#f_isrcAuto').checked = j.isrcAuto !== false;
-  currentConfirm = j.toConfirm || [];
+  currentConfirm = (j.toConfirm || []).filter(k => !(j.mode === 'snippet' && ['writers', 'mix', 'title', 'feats'].includes(k)));
   currentExtra = j.extra || {};
   const ids = { title: 'f_title', artist: 'f_artist', feats: 'f_feats', date: 'f_date', writers: 'f_writers', mix: 'f_mix', duration: 'f_duration' };
   Object.values(ids).forEach(id => $('#' + id).parentElement.classList.remove('flag'));
@@ -71,8 +71,12 @@ function showJob(j) {
   $('#extra').textContent = extra.join(' · ');
 }
 
-function showMode() { $('#snipBox').hidden = $('#f_mode').value !== 'snippet'; }
-$('#f_mode').addEventListener('change', () => { showMode(); save(); });
+function showMode() {
+  const snip = $('#f_mode').value === 'snippet';
+  $('#snipBox').hidden = !snip;
+  document.querySelectorAll('[data-nosnip]').forEach(el => { el.hidden = snip; });
+}
+$('#f_mode').addEventListener('change', () => { showMode(); save(); showJob(readJob()); });
 
 async function save() {
   await browser.storage.local.set({ [JOB]: readJob() });
@@ -86,20 +90,22 @@ $('#parse').addEventListener('click', async () => {
     writers: p.writers, mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || '',
-    mode: p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : keep.mode), snippets: keep.snippets,
+    mode: p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : keep.mode), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
     srcIsrc: (p.mode === 'snippet' && p.isrc) ? p.isrc : keep.srcIsrc,
     isrcAuto: p.isrcAuto, toConfirm: p.toConfirm,
     extra: { territory: p.territory, upc: p.upc, label: p.label }
   };
   showJob(job);
   await save();
-  const missing = ['title', 'artist', 'date'].filter(k => !job[k]);
-  if (!job.writers.length) missing.push('writers');
+  const missing = (job.mode === 'snippet' ? ['artist', 'date'] : ['title', 'artist', 'date']).filter(k => !job[k]);
+  if (job.mode === 'snippet' && !job.srcIsrc) missing.push('isrc');
+  if (job.mode === 'snippet' && !(job.snippets || []).length) missing.push('snippets');
+  if (!job.writers.length && job.mode !== 'snippet') missing.push('writers');
   const notes = (p.notes || []).concat(p.mode === 'album' ? ['type « album » : pas encore automatisé, fais-le à la main'] : []);
   $('#parseMsg').style.color = missing.length ? 'var(--red)' : '';
   $('#parseMsg').textContent = (missing.length
     ? 'Pas trouvé : ' + missing.map(k => LABELS[k] || k).join(', ') + '. Complète à la main (ou demande un mail au format modèle).'
-    : 'Fiche remplie. Ajoute le WAV pour la durée.') + (notes.length ? ' — ' + notes.join(' ; ') : '');
+    : (job.mode === 'snippet' ? 'Fiche snippet remplie.' : 'Fiche remplie. Ajoute le WAV pour la durée.')) + (notes.length ? ' — ' + notes.join(' ; ') : '');
 });
 
 document.querySelectorAll('section input, section textarea').forEach(el => {
@@ -220,6 +226,7 @@ Artiste principal :
 Featuring :
 Titre :
 Version :
+Durées des snippets : (snippet seulement, ex. 0:59, 0:59, 0:37)
 Auteurs :
 Compositeurs :
 Producteurs :
