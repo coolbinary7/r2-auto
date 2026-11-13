@@ -13,6 +13,9 @@
     let m = t.match(/(\d{1,2})\s*(?:er)?\s+([a-z]+)\.?\s+(\d{4})/);
     if (m && MOIS[m[2]] ) return `${m[3]}-${pad(MOIS[m[2]])}-${pad(m[1])}`;
     if (m && MOIS[m[2].slice(0, 3)]) return `${m[3]}-${pad(MOIS[m[2].slice(0, 3)])}-${pad(m[1])}`;
+    m = t.match(/(\d{1,2})\s*(?:er)?\s+([a-z]+)\.?(?!\s*\d)/);
+    const mo = m && (MOIS[m[2]] || MOIS[m[2].slice(0, 3)]);
+    if (mo) { const now = new Date(); let y = now.getFullYear(); if (new Date(y, mo - 1, +m[1]) < new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30)) y++; return `${y}-${pad(mo)}-${pad(m[1])}`; }
     m = t.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
     if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${pad(m[2])}-${pad(m[1])}`;
     m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -26,8 +29,8 @@
 
   // Retire « (à confirmer) », « à confirmer », « TBC »…
   function clean(v) {
-    const flagged = /a confirmer|tbc|to be confirmed|\?\s*$/.test(norm(v));
-    const value = v.replace(/\(?\s*(à|a)\s+confirmer\s*\)?/ig, '').replace(/\(?\s*tbc\s*\)?/ig, '').replace(/\s+/g, ' ').trim();
+    const flagged = /a confirmer|a preciser|a definir|a venir|tbc|tbd|to be confirmed|\?\s*$/.test(norm(v));
+    const value = v.replace(/\(?\s*(à|a)\s+(confirmer|préciser|preciser|définir|definir|venir)\s*\)?/ig, '').replace(/\(?\s*(tbc|tbd|n\/a)\s*\)?/ig, '').replace(/\s+/g, ' ').trim();
     return { value, flagged };
   }
 
@@ -92,7 +95,8 @@
 
   function parseMail(text) {
     const out = { title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
-    text = decode(text);
+    // mise en forme ajoutée par Copilot / ChatGPT / Outlook : **gras**, __gras__, # titres, `code`
+    text = decode(text).replace(/\*\*|__|`/g, '').replace(/^\s*#{1,6}\s*/gm, '').replace(/\u00a0/g, ' ');
     if (!parseTable(text, out)) {
       const lines = text.split(/\r?\n/);
       let block = null;   // titre seul sur sa ligne (« Artistes », « Beatmaker »…) : les lignes suivantes sont ses valeurs
@@ -144,6 +148,9 @@
     const uniq = (a) => { const seen = new Set(); return a.filter(x => { const k = norm(x); if (seen.has(k)) return false; seen.add(k); return true; }); };
     out.feats = uniq(out.feats); out.writers = uniq(out.writers); out.mix = uniq(out.mix); out.producers = uniq(out.producers);
     if (!out.writers.length) out.toConfirm.push('writers');
+    // « Artiste principal : DIBY PROD » alors que c'est le label
+    const k2 = (x) => norm(x).replace(/[^a-z0-9]/g, '').replace(/prod(uction)?s?$/, '');
+    if (out.artist && out.label && k2(out.artist) === k2(out.label)) { out.toConfirm.push('artist'); out.notes.push(`l’artiste principal « ${out.artist} » est le nom du label : mets le vrai artiste`); }
     out.toConfirm = [...new Set(out.toConfirm)];
     return out;
   }

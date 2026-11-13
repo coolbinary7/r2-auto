@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Auto R2",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Saisit une sortie dans R2 à partir du mail de mise en ligne : release, piste, auteurs, mix/master, cover, rattachement.",
   "permissions": [
     "storage",
