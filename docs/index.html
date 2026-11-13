@@ -68,9 +68,9 @@
       </div>
       <aside class="side">
         <div class="side-label">État du projet</div>
-        <div class="ver">Auto R2 0.5.1</div>
+        <div class="ver">Auto R2 0.5.2</div>
         <span class="state">En test</span>
-        <a class="btn p" href="./downloads/Auto-R2-0.5.1.zip" download>Télécharger Auto R2 0.5.1</a>
+        <a class="btn p" href="./downloads/Auto-R2-0.5.2.zip" download>Télécharger Auto R2 0.5.2</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Firefox-0.2.0.zip" download>Recorder 0.2.0 pour Firefox (R2)</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Chrome-0.2.0.zip">Recorder 0.2.0 pour Chrome (RWS, CWS, AIT)</a>
         <a class="btn" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="#tuto">▶ Voir le tuto vidéo (2 min)</a>
@@ -100,6 +100,38 @@
       <div class="step now"><b>De bout en bout</b><p>La piste et la cover sont maintenant rattachées à la release (glisser-déposer fait par l’extension), puis la release est enregistrée.</p></div>
       <div class="step"><b>Ne s’arrête plus</b><p>Si un écran résiste, le bandeau dit quoi faire et reprend tout seul. Bouton « Reprendre » : repart de l’étape en cours.</p></div>
       <div class="step"><b>Fenêtres de R2</b><p>Les « Yes / Ok » connus sont gérés (retrait de piste, enregistrer avant de quitter…). Le Submit n’est jamais cliqué.</p></div>
+    </div>
+
+    <h2 id="format">Format commun : mail et tableau</h2>
+    <div class="card">
+      <p>Pour que les extensions lisent toutes les sorties de la même façon, tout le monde suit ce format. <b>Une info par ligne, sous la forme « Clé : valeur »</b>, noms séparés par des virgules, date en JJ/MM/AAAA.</p>
+      <pre id="mailModel" style="white-space:pre-wrap;background:#f5f5f4;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px">MISE EN LIGNE – ARTISTE PRINCIPAL – TITRE – SORTIE LE JJ/MM/AAAA
+
+Type de sortie : Single / Snippet / Album
+Date de sortie : JJ/MM/AAAA
+Artiste principal :
+Featuring :
+Titre :
+Version :
+Auteurs :
+Compositeurs :
+Producteurs :
+Mix / Master :
+Genre :
+Label :
+Territoire : Monde
+UPC : à générer
+ISRC : à générer
+Assets : (lien)</pre>
+      <button class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" onclick="navigator.clipboard.writeText(document.getElementById('mailModel').innerText).then(()=>{this.textContent='Copié ✓'})">📋 Copier le modèle de mail</button>
+      <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/modele-mise-en-ligne.xlsx" download>Télécharger le modèle Excel</a>
+      <ul>
+        <li><b>Artiste principal</b> : un seul nom. Les invités vont dans <b>Featuring</b>.</li>
+        <li><b>Auteurs</b> : obligatoires pour R2 (Prénom Nom).</li>
+        <li><b>Snippet</b> : dans « ISRC », mets l’ISRC de la piste complète.</li>
+        <li><b>Tableau</b> : une ligne = un titre ; un album = plusieurs lignes avec le même UPC et le même « Projet ». Dans Auto R2, tu peux coller la ligne des titres + la ligne du morceau à la place du mail. Le même fichier s’importe dans Auto Release (Linkfire). Il s’ouvre aussi dans Google Sheets.</li>
+        <li>Un mail « à l’ancienne » (artistes en liste, « Beatmaker », nom de dossier « 20261212-ARTISTE - … : TITRE ») est encore compris, mais il manque souvent les auteurs : l’extension te le dit.</li>
+      </ul>
     </div>
 
     <h2>Installer dans Firefox</h2>
@@ -187,7 +219,7 @@
       <p class="note">Si tu t’es trompé en cours de route, ce n’est pas grave : note-le dans ton message (« j’ai ouvert la copie par erreur vers la fin »), ça évite d’automatiser une erreur.</p>
     </div>
 
-    <footer>Outil interne non officiel · Auto R2 0.5.1 · Recorder 0.2.0 (Firefox et Chrome)</footer>
+    <footer>Outil interne non officiel · Auto R2 0.5.2 · Recorder 0.2.0 (Firefox et Chrome)</footer>
   </main>
   <script>document.querySelectorAll('.chaps button').forEach(b=>b.addEventListener('click',()=>{const v=b.closest('.tuto').querySelector('video');v.currentTime=+b.dataset.t;v.play();}));</script>
 </body>

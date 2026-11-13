@@ -31,52 +31,119 @@
     return { value, flagged };
   }
 
+  // HTML encodé par Outlook (« &#x3a; » = « : »)
+  const decode = (t) => (t || '').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCharCode(+d))
+    .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&apos;|&#39;/g, "'");
+
   const KEYS = [
-    ['title', /^(titre|title|nom du titre|single)$/],
+    ['title', /^(titre|title|nom du titre|single|titre du son)$/],
+    ['artists', /^(artistes|artists|interpretes)$/],
     ['artist', /^(artiste principal|artiste|main artist|artist|artiste\(s\))$/],
+    ['mode', /^(type de sortie|type|format|type de release)$/],
+    ['version', /^(version|version title|titre de version)$/],
+    ['producers', /^(producteurs?|prod|producers?|beatmakers?|realisateurs?|arrangeurs?)$/],
     ['feats', /^(featuring|feat|feats|ft|artiste invite|artistes invites|invite\(s\)|featured artist)s?$/],
     ['date', /^(date de sortie|sortie|release date|date)$/],
-    ['writers', /^(auteurs?|auteurs? compositeurs?|auteur-compositeur|compositeurs?|paroles et musique|paroliers?|writers?|songwriters?|ecriture)$/],
-    ['mix', /^(mix ?(&|et|and)? ?master(ing)?|mix|mixage|mastering|master|ingenieur du son|mix\/master)$/],
+    ['writers', /^(auteurs?|auteurs? compositeurs?|auteurs?\s*[\/&-]\s*compositeurs?|auteur-compositeur|compositeurs?|paroles et musique|paroles|paroliers?|writers?|songwriters?|composers?|ecriture|composition et paroles)$/],
+    ['mix', /^(mix ?(&|et|and|\/)? ?master(ing)?|mix|mixage|mastering|master|ingenieur du son|mix\/master)$/],
     ['isrc', /^(isrc)$/],
     ['upc', /^(upc|ean|code barre)$/],
     ['territory', /^(territoires?|territory|zone)$/],
+    ['assets', /^(assets|lien des assets|liens?|wav|fichiers)$/],
     ['label', /^(label)$/],
     ['genre', /^(genre|genre musical|style)$/]
   ];
 
+  const keyOf = (t) => { const k = norm(t).replace(/\s+/g, ' ').replace(/[\s:：]+$/, ''); const hit = KEYS.find(([, re]) => re.test(k)); return hit ? hit[0] : null; };
+  const LIST = new Set(['feats', 'writers', 'mix', 'producers', 'artists']);
+
+  function put(out, field, rawValue) {
+    const { value, flagged } = clean(rawValue);
+    if (!value) return;
+    if (flagged) out.toConfirm.push(field);
+    if (LIST.has(field)) {
+      // « 1er prod Shado », « 2e prod Nokuji » → Shado, Nokuji
+      const v = value.replace(/^\s*\d+\s*(?:er|ere|re|e|eme|ème|nd|nde)?\s*(?:prod(?:ucteur|uction)?|beat(?:maker)?)?\s*[:\-–]?\s*/i, '');
+      out[field] = out[field].concat(splitNames(v));
+    } else if (field === 'date') {
+      out.date = out.date || parseDate(value);
+    } else if (field === 'isrc') {
+      out.isrcAuto = /generer|generate|auto|a creer|nouveau/.test(norm(value)) || !/[A-Z]{2}[A-Z0-9]{3}\d{7}/i.test(value);
+      const m = value.match(/[A-Z]{2}-?[A-Z0-9]{3}-?\d{2}-?\d{5}/i); if (m && !out.isrcAuto) out.isrc = m[0].replace(/-/g, '').toUpperCase();
+    } else if (field === 'mode') {
+      const v = norm(value);
+      out.mode = /snippet|extrait/.test(v) ? 'snippet' : /album|ep\b|deluxe/.test(v) ? 'album' : 'single';
+      out.type = value;
+    } else if (!out[field]) {
+      out[field] = value;
+    }
+  }
+
+  // Une ligne collée depuis le tableau modèle (en-têtes + valeurs séparés par des tabulations)
+  function parseTable(text, out) {
+    const rows = text.split(/\r?\n/).filter(l => l.includes('\t')).map(l => l.split('\t'));
+    const hi = rows.findIndex(r => r.filter(c => keyOf(c)).length >= 3);
+    if (hi < 0 || !rows[hi + 1]) return false;
+    const head = rows[hi].map(keyOf);
+    const row = rows[hi + 1];
+    head.forEach((f, i) => { if (f && row[i] && String(row[i]).trim()) put(out, f, String(row[i])); });
+    return true;
+  }
+
   function parseMail(text) {
-    const out = { title: '', artist: '', feats: [], date: '', writers: [], mix: [], isrcAuto: true, upc: '', territory: '', label: '', genre: '', toConfirm: [] };
-    const lines = (text || '').split(/\r?\n/);
-    for (const raw of lines) {
-      const m = raw.match(/^\s*[-•*]?\s*([^:：]{2,40}?)\s*[:：]\s*(.+)$/);
-      if (!m) continue;
-      const key = norm(m[1]).replace(/\s+/g, ' ');
-      const hit = KEYS.find(([, re]) => re.test(key));
-      if (!hit) continue;
-      const field = hit[0];
-      const { value, flagged } = clean(m[2]);
-      if (flagged) out.toConfirm.push(field);
-      if (field === 'feats' || field === 'writers' || field === 'mix') {
-        out[field] = out[field].concat(splitNames(value));
-      } else if (field === 'date') {
-        out.date = out.date || parseDate(value);
-      } else if (field === 'isrc') {
-        out.isrcAuto = /generer|generate|auto|a creer|nouveau/.test(norm(value)) || !/[A-Z]{2}[A-Z0-9]{3}\d{7}/i.test(value);
-      } else if (!out[field]) {
-        out[field] = value;
+    const out = { title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
+    text = decode(text);
+    if (!parseTable(text, out)) {
+      const lines = text.split(/\r?\n/);
+      let block = null;   // titre seul sur sa ligne (« Artistes », « Beatmaker »…) : les lignes suivantes sont ses valeurs
+      for (const raw of lines) {
+        const line = raw.replace(/^\s*[-•*▪◦]\s*/, '').trim();
+        if (!line) { block = null; continue; }
+        const m = line.match(/^([^:：]{2,40}?)\s*[:：]\s*(.*)$/);
+        const f = m ? keyOf(m[1]) : null;
+        if (f) { if (m[2].trim()) { put(out, f, m[2]); block = LIST.has(f) ? f : null; } else block = f; continue; }
+        const alone = keyOf(line);
+        if (alone) { block = alone; continue; }
+        // « Mix master Shado » sans deux-points
+        const mm = line.match(/^(mix\s*(?:&|et|\/)?\s*master(?:ing)?|mixage|mastering|mix)\s+(.+)$/i);
+        if (mm) { put(out, 'mix', mm[2].replace(/^[\s:：-]+/, '')); continue; }
+        const pm = line.match(/^(?:\d+\s*(?:er|e|eme|ème)?\s*)?(?:prod(?:ucteur|uction)?|beatmaker)\s+(.+)$/i);
+        if (pm) { put(out, 'producers', pm[1]); continue; }
+        if (block) put(out, block, line);
       }
     }
     // Objet du mail : « MISE EN DISTRIBUTION – ARTISTE – TITRE – SORTIE LE 11/11/2026 »
-    const subj = (text || '').match(/mise en (?:distribution|ligne)\s*[–-]\s*([^–\n-]+?)\s*[–-]\s*([^–\n]+?)\s*[–-]\s*sortie le\s*([0-9\/.\-]+)/i);
+    const subj = text.match(/mise en (?:distribution|ligne)\s*[–-]\s*([^–\n-]+?)\s*[–-]\s*([^–\n]+?)\s*[–-]\s*sortie le\s*([0-9\/.\-]+)/i);
     if (subj) {
       if (!out.artist) out.artist = subj[1].trim();
       if (!out.title) out.title = subj[2].trim();
       if (!out.date) out.date = parseDate(subj[3]);
     }
+    // Nom de dossier / objet : « 20261212-SINDIKA - ZRAI - TRK - DIDI B - TEAM PAIYA : SKELELU »
+    const folder = text.match(/(\d{4})(\d{2})(\d{2})\s*-\s*([^:\n]+?)\s*:\s*([^\n]+)/);
+    let order = [];
+    if (folder) {
+      if (!out.date) out.date = `${folder[1]}-${folder[2]}-${folder[3]}`;
+      order = folder[4].split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+      if (!out.title) out.title = folder[5].replace(/\s*[-–]\s*(?:sortie|release).*$/i, '').trim();
+    }
+    // Liste « Artistes » sans artiste principal : l'ordre du nom de dossier fait foi, sinon le premier de la liste
+    if (!out.artist && (out.artists.length || order.length)) {
+      const list = out.artists.length ? out.artists : order;
+      const key = (s) => norm(s).replace(/[^a-z0-9]/g, '');
+      let main = list[0];
+      if (order.length) { const o = list.find(a => key(a) === key(order[0])); main = o || order[0]; }
+      else out.toConfirm.push('artist');
+      out.artist = main;
+      out.feats = out.feats.concat(list.filter(a => key(a) !== key(main)));
+      out.notes.push(`artiste principal pris ${order.length ? 'dans le nom du dossier' : 'en premier de la liste'} : ${main}`);
+    }
     // « feat. X » collé au nom de l'artiste
     const f = out.artist.match(/^(.+?)\s+(?:feat\.?|ft\.?|featuring|x)\s+(.+)$/i);
     if (f) { out.artist = f[1].trim(); out.feats = out.feats.concat(splitNames(f[2])); }
+    const uniq = (a) => { const seen = new Set(); return a.filter(x => { const k = norm(x); if (seen.has(k)) return false; seen.add(k); return true; }); };
+    out.feats = uniq(out.feats); out.writers = uniq(out.writers); out.mix = uniq(out.mix); out.producers = uniq(out.producers);
+    if (!out.writers.length) out.toConfirm.push('writers');
     out.toConfirm = [...new Set(out.toConfirm)];
     return out;
   }

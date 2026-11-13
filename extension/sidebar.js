@@ -86,17 +86,20 @@ $('#parse').addEventListener('click', async () => {
     writers: p.writers, mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || '',
-    mode: keep.mode, snippets: keep.snippets, srcIsrc: keep.srcIsrc,
+    mode: p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : keep.mode), snippets: keep.snippets,
+    srcIsrc: (p.mode === 'snippet' && p.isrc) ? p.isrc : keep.srcIsrc,
     isrcAuto: p.isrcAuto, toConfirm: p.toConfirm,
     extra: { territory: p.territory, upc: p.upc, label: p.label }
   };
   showJob(job);
   await save();
   const missing = ['title', 'artist', 'date'].filter(k => !job[k]);
+  if (!job.writers.length) missing.push('writers');
+  const notes = (p.notes || []).concat(p.mode === 'album' ? ['type « album » : pas encore automatisé, fais-le à la main'] : []);
   $('#parseMsg').style.color = missing.length ? 'var(--red)' : '';
-  $('#parseMsg').textContent = missing.length
-    ? 'Pas trouvé : ' + missing.map(k => LABELS[k]).join(', ') + '. Complète à la main.'
-    : 'Fiche remplie. Ajoute le WAV pour la durée.';
+  $('#parseMsg').textContent = (missing.length
+    ? 'Pas trouvé : ' + missing.map(k => LABELS[k] || k).join(', ') + '. Complète à la main (ou demande un mail au format modèle).'
+    : 'Fiche remplie. Ajoute le WAV pour la durée.') + (notes.length ? ' — ' + notes.join(' ; ') : '');
 });
 
 document.querySelectorAll('section input, section textarea').forEach(el => {
@@ -207,3 +210,27 @@ $('#resumeR2').addEventListener('click', () => sendCmd('resume'));
   if (!d[SET] || !d[SET].v) await saveSettings();
   showState(d[STATE]);
 })();
+
+// modèle de mail à copier
+const MAIL_MODEL = `MISE EN LIGNE – ARTISTE PRINCIPAL – TITRE – SORTIE LE JJ/MM/AAAA
+
+Type de sortie : Single / Snippet / Album
+Date de sortie : JJ/MM/AAAA
+Artiste principal :
+Featuring :
+Titre :
+Version :
+Auteurs :
+Compositeurs :
+Producteurs :
+Mix / Master :
+Genre :
+Label :
+Territoire : Monde
+UPC : à générer
+ISRC : à générer
+Assets : (lien)`;
+$('#copyModel').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(MAIL_MODEL); $('#parseMsg').style.color = ''; $('#parseMsg').textContent = 'Modèle de mail copié : colle-le dans ton mail ou envoie-le aux labels.'; }
+  catch (e) { $('#mail').value = MAIL_MODEL; $('#parseMsg').textContent = 'Modèle affiché ci-dessus : copie-le.'; }
+});
