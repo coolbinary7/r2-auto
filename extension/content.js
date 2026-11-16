@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.5.5';
+  const VERSION = '0.5.6';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -505,6 +505,14 @@
     if (!item) { log('menu clic droit : « Copy » introuvable'); return false; }
     click(item.querySelector('img') || item);
     return true;
+  }
+
+  async function toolbarCopy() {
+    const ic = vis('img#img_copy_resource_icon');
+    if (!ic) return false;
+    log('copie par le bouton « Copy Resource »');
+    click(ic);
+    return !!(await waitScreen('copyResource', 10000));
   }
 
   // Double-clic dans l'arbre (ouvre la release / la ressource)
@@ -1080,6 +1088,9 @@
     return (job.snippets || []).map(d => String(d).trim()).filter(Boolean);
   }
   async function fillCopySnippet(job, k) {
+    while (!$id('copy_resource_title_0')) {
+      await until(() => !!$id('copy_resource_title_0'), 500, `La fenêtre de copie n’est pas ouverte : ouvre « ${k === 1 ? job.title : snipTitle(job, k - 1)} » puis clique l’icône « Copy Resource » (ou clic droit → Copy dans RESOURCES). Je reprends.`);
+    }
     const type = $id('copy_resource_type_0');
     if (type && visible(type)) { try { setSelect(type, 'Audio'); } catch (e) { /* déjà Audio */ } await sleep(400); }
     const t = $id('copy_resource_title_0');
@@ -1150,7 +1161,15 @@
         }
       } else node = await findResourceNode(srcTitle, { cover: false, timeout: 60000 });
       if (node && k === 1) { run.srcIsrc = node.code; await saveRun(run); log('piste complète dupliquée : ' + node.text); }
-      for (let i = 0; node && i < 2 && screen() !== 'copyResource'; i++) { await contextCopy(node.el); await waitScreen('copyResource', 8000); }
+      // la ressource source est ouverte à l'écran (cas du snippet précédent) : bouton « Copy Resource » de la barre d'outils
+      const srcOpen = () => screen() === 'resourceAudio' && titleIs(job.title) && norm(($id('version_title') || {}).value || '') === norm(k === 1 ? '' : snipName(k - 1));
+      if (srcOpen()) await toolbarCopy();
+      for (let i = 0; node && i < 2 && screen() !== 'copyResource'; i++) {
+        if (await contextCopy(node.el)) { await waitScreen('copyResource', 8000); continue; }
+        // menu clic droit absent : on ouvre la ressource, puis bouton « Copy Resource »
+        await openNode(node.el); await waitIdle();
+        if (await waitFor(() => srcOpen() || (k === 1 && screen() === 'resourceAudio'), 15000)) await toolbarCopy();
+      }
       await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur « ${srcTitle} » dans RESOURCES, je reprends.`);
     }
     await fillCopySnippet(job, k);
