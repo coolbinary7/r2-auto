@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.5.4';
+  const VERSION = '0.5.5';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -440,7 +440,9 @@
       const all = resourceList().filter(r => r.cover === cover);
       const byCode = codes.length ? all.find(r => codes.includes(String(r.code).toUpperCase())) : null;
       if (byCode) return byCode;
-      const list = all.filter(r => norm(r.title) === w);
+      let list = all.filter(r => norm(r.title) === w);
+      // secours : « Titre - Version » (version recopiée par erreur), la ressource la plus récente
+      if (!list.length && w) { list = all.filter(r => norm(r.title).startsWith(w + ' - ')); if (list.length) { list.sort((a, b) => b.id - a.id); return list[0]; } }
       if (!list.length) return null;
       return list.sort((a, b) => oldest ? a.id - b.id : b.id - a.id)[0];
     };
@@ -916,6 +918,10 @@
       }
       const t = $id('copy_resource_title_0');
       setText(t, job.title);
+      // la piste modèle peut porter une version (« Remix », « Acoustique »…) : on ne la recopie pas
+      const v = $id('copy_resource_version_title_0');
+      const wantV = job.version || '';
+      if (v && norm(v.value) !== norm(wantV)) { log(`version recopiée « ${v.value} » → « ${wantV} »`); setText(v, wantV); await sleep(200); }
       await sleep(300);
       if (t.value !== job.title) setText(t, job.title);
       await step(kind === 'image' ? 'copyImage' : 'copyAudio', 'ok');
@@ -928,6 +934,8 @@
     },
 
     async resourceAudio({ job, set }) {
+      const vt = $id('version_title');
+      if (vt && visible(vt) && norm(vt.value) !== norm(job.version || '')) { log(`version de la piste « ${vt.value} » → « ${job.version || ''} »`); setText(vt, job.version || ''); await sleep(300); }
       // ISRC : 3rd Party + Auto-Generate
       const third = $id('isrc_id_type_third');
       if (job.isrcAuto !== false && third) {
