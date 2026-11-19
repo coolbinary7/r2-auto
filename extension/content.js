@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.5.6';
+  const VERSION = '0.6.0';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -111,11 +111,13 @@
       if (optional) { log(`liste ${id} absente (ignorée)`); return false; }
       throw new Error(`champ ${id} introuvable`);
     }
-    const w = norm(wanted);
-    if (norm(input.value) === w) return true;
+    const isRe = wanted instanceof RegExp;
+    const w = isRe ? '' : norm(wanted);
+    if (isRe ? wanted.test(input.value) : norm(input.value) === w) return true;
     const pick = () => {
       const opts = comboOptions(id);
       if (!opts.length) return null;
+      if (isRe) return opts.find(o => wanted.test(txt(o))) || 'none';
       return opts.find(o => norm(txt(o)) === w) || opts.find(o => norm(txt(o)).startsWith(w)) || opts.find(o => norm(txt(o)).includes(w)) || 'none';
     };
     const mo = new MutationObserver(muts => {
@@ -146,7 +148,7 @@
       mouse(opt, 'mouseover'); mouse(opt, 'mousemove');
       await sleep(80);
       click(opt);
-      if (await waitFor(() => norm(input.value) === norm(txt(opt)) || norm(input.value).includes(w), 3000)) {
+      if (await waitFor(() => norm(input.value) === norm(txt(opt)) || (!isRe && norm(input.value).includes(w)), 3000)) {
         log(`liste ${id} = ${input.value} (${how})`);
         await sleep(300);
         return true;
@@ -737,12 +739,18 @@
   const hasContributor = (kind, name) => contribRows(kind).some(tr => norm(txt(tr)).includes(norm(name)) || [...tr.querySelectorAll('a')].some(a => norm(a.getAttribute('title') || '').includes(norm(name))));
 
   // Ajoute un contributeur : nom → Tab (R2 cherche) → Identify si besoin (choix par l'utilisateur) → Save
-  async function addContributor(kind, name, group, role) {
-    const addSel = kind === 'writer' ? 'img#img_writers_composers_add' : 'img#img_secondary_contributors_add';
+  async function addContributor(kind, name, group, role, opt = {}) {
+    const addSel = kind === 'writer' ? 'img#img_writers_composers_add' : kind === 'primary' ? 'img#img_primary_contributors_add' : 'img#img_secondary_contributors_add';
     const modalSave = () => vis('a#saveButton[onclick*="saveContributor"]');
     const nameInput = () => { const e = $id('contributor_name_0'); return e && visible(e) ? e : null; };
-    log(`contributeur ${kind} : ${name}`);
-    if (!modalSave()) {
+    log(`contributeur ${kind} : ${name}${opt.editRow ? ' (à la place de « ' + opt.oldName + ' »)' : ''}`);
+    if (opt.editRow) {
+      // on modifie la ligne héritée : son rôle et son type restent, seul le nom change
+      const ed = opt.editRow.querySelector('a[href*="editSecondaryContributor"], a[title="Edit Contributor"]');
+      if (ed) { click(ed.querySelector('img') || ed); await waitFor(nameInput, 10000); }
+      if (!nameInput()) { log('fenêtre d’édition introuvable : ajout d’une nouvelle ligne'); opt = { ...opt, editRow: null }; }
+    }
+    if (!opt.editRow && !modalSave()) {
       await until(() => vis(addSel), 25000, `Je ne vois pas le bouton + (${kind === 'writer' ? 'Add Writer/Composer' : 'Add Secondary Contributor'}). Affiche l’onglet Contributors, je continue ensuite.`);
       click(vis(addSel));
     }
@@ -754,10 +762,11 @@
     inp.value = name;
     fire(inp, 'input', 'keyup');
     await sleep(300);
-    if (group) {
-      await setCombo('role_group_0', group, 'Role Group');
+    if (group && !opt.editRow) {
+      const g = await setCombo('role_group_0', group, 'Role Group', { optional: !!opt.optional });
       await sleep(600);
-      if (role) await setCombo('role_0', role, 'Role');
+      const r = role ? await setCombo('role_0', role, 'Role', { optional: !!opt.optional }) : true;
+      if (opt.optional && (!g || !r)) notes.push(`« ${name} » : rôle à choisir à la main (${opt.roleLabel || 'rôle'})`);
       await sleep(300);
       if (nameInput() && norm(nameInput().value) !== norm(name)) { nameInput().value = name; fire(nameInput(), 'input', 'keyup'); }
     }
@@ -780,6 +789,14 @@
       await sleep(900);
     };
     if (idf) await choose(); else log('Identify ne s’est pas ouvert pour ' + name);
+    // crédit (« Vocals: Josey » → « Vocals: Ntaba 2 London », « Produced by … »)
+    const cr = $id('contributor_credit_0');
+    if (cr && visible(cr)) {
+      let want = cr.value;
+      if (opt.oldName && want && norm(want).includes(norm(opt.oldName))) want = want.replace(new RegExp(opt.oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), name);
+      else if (opt.credit && (!want || (opt.oldName && !norm(want).includes(norm(name))))) want = opt.credit;
+      if (want !== cr.value) { setText(cr, want); log(`crédit : ${want}`); }
+    }
     const trySave = async () => {
       const b = modalSave();
       if (!b) return true;
@@ -823,6 +840,69 @@
       removed++;
     }
     return removed;
+  }
+
+  // Lignes « Secondary » : rôle, nom, crédit (colonnes : catégorie, groupe, rôle, type, nom, id, crédit, actions)
+  function secondaryInfo(tr) {
+    const tds = [...tr.querySelectorAll('td')];
+    const idx = tds.findIndex(td => td.querySelector('a[href*="loadTalent"]'));
+    const name = idx > 0 ? txt(tds[idx - 1]) : '';
+    const all = norm(tds.map(txt).join(' | '));
+    const kind = /vocal/.test(all) ? 'vocal' : /produc/.test(all) ? 'producer' : /master|mix/.test(all) ? 'mix' : 'other';
+    return { tr, name, kind, credit: idx >= 0 && tds[idx + 1] ? txt(tds[idx + 1]) : '' };
+  }
+  async function deleteSecondaryRow(tr, label) {
+    const rows = () => contribRows('editSecondaryContributor');
+    const n = rows().length;
+    selectRow(tr); await sleep(400);
+    const del = vis('img#img_secondary_contributors_delete');
+    expectDelete();
+    if (del) click(del);
+    let ok = await waitFor(() => rows().length < n, 7000);
+    if (!ok) {
+      const a = tr.isConnected && tr.querySelector('a[title="Remove Contributor"]');
+      if (a) { selectRow(tr); await sleep(200); expectDelete(); click(a.querySelector('img') || a); ok = await waitFor(() => rows().length < n, 7000); }
+    }
+    if (ok) { log(`retrait de ${label}`); await waitIdle(); } else notes.push(`${label} à retirer à la main`);
+    return ok;
+  }
+  // Piste : featurings (primary), voix, producteurs et mix/master (secondary) alignés sur la fiche ;
+  // les lignes héritées de la piste copiée sont renommées (rôle et type gardés) ou retirées.
+  async function syncTrackContributors(job, set) {
+    const feats = (job.feats || []).filter(Boolean);
+    // 1. featurings en artiste principal
+    for (const f of feats) {
+      if (contribRows('editPrimaryContributor').some(tr => norm(txt(tr)).includes(norm(f)))) { log(`featuring déjà présent : ${f}`); continue; }
+      await addContributor('primary', f, /^artists?$/i, /feat/i, { optional: true, roleLabel: 'Featuring' });
+    }
+    // 2. secondaires
+    const groups = [
+      { kind: 'vocal', want: [job.artist, ...feats].filter(Boolean), keepUnlisted: false, group: 'Musicians - Vocal', role: 'Vocalist', credit: (n) => `Vocals: ${n}`, label: 'voix', addMissing: feats },
+      { kind: 'producer', want: job.producers || [], group: 'Producers', role: 'Producer', credit: (n) => `Produced by ${n}`, label: 'producteur', addMissing: job.producers || [] },
+      { kind: 'mix', want: job.mix || [], group: set.mixGroup || 'Mastering Engineers', role: set.mixRole || 'Mastering Engineer', credit: null, label: 'mix/master', addMissing: job.mix || [] }
+    ];
+    await waitFor(() => vis('img#img_secondary_contributors_add'), 8000);
+    for (const g of groups) {
+      const rowsOf = () => contribRows('editSecondaryContributor').map(secondaryInfo).filter(r => r.kind === g.kind);
+      const isWanted = (n) => g.want.some(w => norm(w) === norm(n));
+      // a) lignes héritées → renommées vers les noms manquants, sinon retirées
+      for (let guard = 0; guard < 10; guard++) {
+        const rows = rowsOf();
+        const stale = rows.find(r => r.name && !isWanted(r.name));
+        if (!stale) break;
+        const missing = g.addMissing.filter(n => !rows.some(r => norm(r.name) === norm(n)));
+        if (missing.length) await addContributor('secondary', missing[0], null, null, { editRow: stale.tr, oldName: stale.name, credit: g.credit ? g.credit(missing[0]) : '' });
+        else if (!await deleteSecondaryRow(stale.tr, `${g.label} hérité « ${stale.name} »`)) break;
+        await sleep(500);
+      }
+      // b) noms encore absents → nouvelles lignes
+      for (const n of g.addMissing) {
+        if (rowsOf().some(r => norm(r.name) === norm(n))) continue;
+        await addContributor('secondary', n, g.group, g.role, { optional: true, roleLabel: `${g.group} / ${g.role}`, credit: g.credit ? g.credit(n) : '' });
+      }
+    }
+    const others = contribRows('editSecondaryContributor').map(secondaryInfo).filter(r => r.kind === 'other' && r.name);
+    if (others.length) notes.push(`autres contributeurs hérités à vérifier : ${others.map(r => r.name).join(', ')}`);
   }
 
   async function removeSecondaryContributors() {
@@ -990,11 +1070,7 @@
         if (hasContributor('editWorkContributor', name)) { log(`auteur déjà présent : ${name}`); continue; }
         await addContributor('writer', name, null, null);
       }
-      const role = set.mixRole || 'Mastering Engineer';
-      for (const name of (job.mix || [])) {
-        if (contribRows('editSecondaryContributor').some(tr => norm(txt(tr)).includes(norm(name)) && norm(txt(tr) + ' ' + [...tr.querySelectorAll('a')].map(a => a.title).join(' ')).includes(norm(role)))) { log(`mix/master déjà présent : ${name}`); continue; }
-        await addContributor('secondary', name, set.mixGroup || 'Mastering Engineers', role);
-      }
+      await syncTrackContributors(job, set);
       await step('contributors', 'ok');
       if (set.autoSave === false) return 'Piste remplie. Vérifie puis clique « Save ».';
       await saveAndCheck('img#img_saveActionIcon', 'la piste');
@@ -1418,13 +1494,33 @@
 
   function esc(t) { return String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+  function placeHost(x, y) {
+    const w = host.offsetWidth || 300, h = host.offsetHeight || 40;
+    x = Math.max(0, Math.min(x, window.innerWidth - Math.min(w, 120)));
+    y = Math.max(0, Math.min(y, window.innerHeight - Math.min(h, 30)));
+    host.style.left = x + 'px'; host.style.top = y + 'px'; host.style.right = 'auto';
+  }
   function render() {
     if (!host || !host.isConnected) {
       host = document.createElement('div');
       host.id = 'r2auto-host';
       host.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;';
+      // position choisie par l'utilisateur (bandeau déplaçable)
+      try { const p = JSON.parse(localStorage.getItem('r2auto-pos') || 'null'); if (p) placeHost(p.x, p.y); } catch (e) { /* rien */ }
       shadow = host.attachShadow({ mode: 'open' });
       document.documentElement.appendChild(host);
+      shadow.addEventListener('pointerdown', (e) => {
+        if (!e.composedPath().some(n => n.dataset && n.dataset.drag !== undefined)) return;
+        e.preventDefault(); e.stopPropagation();
+        const r = host.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+        const move = (ev) => placeHost(ev.clientX - dx, ev.clientY - dy);
+        const up = () => {
+          window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerup', up, true);
+          const q = host.getBoundingClientRect();
+          try { localStorage.setItem('r2auto-pos', JSON.stringify({ x: q.left, y: q.top })); } catch (er) { /* rien */ }
+        };
+        window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true);
+      }, true);
     }
     const s = ui.screen;
     const st = ui.status;
@@ -1435,6 +1531,7 @@
         .b{font:12px/1.4 system-ui,"Segoe UI",sans-serif;background:#0f2747;color:#fff;border-radius:10px;padding:8px 10px;width:${ui.collapsed ? 'auto' : '300px'};box-shadow:0 8px 24px rgba(0,0,0,.3)}
         .h{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
         .t{font-weight:800}
+        .g2{cursor:grab;font-size:16px;line-height:1;padding:0 4px 0 0;color:#93b4e0;user-select:none;touch-action:none}
         .s{font-size:11px;color:#bcd3f5}
         .m{margin-top:6px;padding:6px 8px;border-radius:7px;font-size:12px}
         .run{background:#1e4f8f}.pause{background:#92400e}.err{background:#7f1d1d}.ok{background:#065f46}
@@ -1443,7 +1540,7 @@
         button.g{background:#2d4a72;color:#fff}
       </style>
       <div class="b">
-        <div class="h" data-a="toggle"><span class="t">Auto R2 <span class="s">${VERSION}</span></span><span class="s">${s ? esc(SCREEN_LABELS[s]) : (ui.busy ? 'en cours' : 'prêt')} ${ui.collapsed ? '▸' : '▾'}</span></div>
+        <div class="h" data-a="toggle"><span class="g2" data-drag title="Glisser pour déplacer (double-clic : remettre en haut à droite)">⠿</span><span class="t" style="flex:1">Auto R2 <span class="s">${VERSION}</span></span><span class="s">${s ? esc(SCREEN_LABELS[s]) : (ui.busy ? 'en cours' : 'prêt')} ${ui.collapsed ? '▸' : '▾'}</span></div>
         ${ui.collapsed ? '' : `
           ${st ? `<div class="m ${st.kind}">${esc(st.text)}</div>` : ''}
           ${ui.ask ? `<div class="m pause">${esc(ui.ask)}</div>` : ''}
@@ -1454,7 +1551,9 @@
             <button class="g" data-a="diag">Copier le diagnostic</button>
           </div>`}
       </div>`;
-    shadow.querySelectorAll('[data-a]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); onAction(el.dataset.a); }));
+    shadow.querySelectorAll('[data-a]').forEach(el => el.addEventListener('click', (e) => { if (e.composedPath().some(n => n.dataset && n.dataset.drag !== undefined)) return; e.stopPropagation(); onAction(el.dataset.a); }));
+    const grip = shadow.querySelector('[data-drag]');
+    if (grip) grip.addEventListener('dblclick', (e) => { e.stopPropagation(); host.style.left = ''; host.style.top = '8px'; host.style.right = '8px'; try { localStorage.removeItem('r2auto-pos'); } catch (er) { /* rien */ } });
   }
 
   function startBusy() {

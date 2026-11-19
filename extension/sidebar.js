@@ -17,8 +17,8 @@ const DEFAULTS = {
   fixYears: true
 };
 
-const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc'];
-const LABELS = { isrc: 'ISRC de la piste complète', snippets: 'durées des snippets', title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', mix: 'mix & master', duration: 'durée' };
+const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'producers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc'];
+const LABELS = { isrc: 'ISRC de la piste complète', snippets: 'durées des snippets', title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', producers: 'producteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
   return {
@@ -27,6 +27,7 @@ function readJob() {
     feats: $('#f_feats').value.split(',').map(s => s.trim()).filter(Boolean),
     date: $('#f_date').value,
     writers: $('#f_writers').value.split('\n').map(s => s.trim()).filter(Boolean),
+    producers: $('#f_producers').value.split('\n').map(s => s.trim()).filter(Boolean),
     mix: $('#f_mix').value.split('\n').map(s => s.trim()).filter(Boolean),
     duration: $('#f_duration').value.trim(),
     genre: $('#f_genre').value.trim(),
@@ -47,6 +48,7 @@ function showJob(j) {
   $('#f_feats').value = (j.feats || []).join(', ');
   $('#f_date').value = j.date || '';
   $('#f_writers').value = (j.writers || []).join('\n');
+  $('#f_producers').value = (j.producers || []).join('\n');
   $('#f_mix').value = (j.mix || []).join('\n');
   $('#f_duration').value = j.duration || '';
   $('#f_genre').value = j.genre || '';
@@ -55,9 +57,9 @@ function showJob(j) {
   $('#f_srcIsrc').value = j.srcIsrc || '';
   showMode();
   $('#f_isrcAuto').checked = j.isrcAuto !== false;
-  currentConfirm = (j.toConfirm || []).filter(k => !(j.mode === 'snippet' && ['writers', 'mix', 'title', 'feats'].includes(k)));
+  currentConfirm = (j.toConfirm || []).filter(k => !(j.mode === 'snippet' && ['writers', 'producers', 'mix', 'title', 'feats'].includes(k)));
   currentExtra = j.extra || {};
-  const ids = { title: 'f_title', artist: 'f_artist', feats: 'f_feats', date: 'f_date', writers: 'f_writers', mix: 'f_mix', duration: 'f_duration' };
+  const ids = { title: 'f_title', artist: 'f_artist', feats: 'f_feats', date: 'f_date', writers: 'f_writers', producers: 'f_producers', mix: 'f_mix', duration: 'f_duration' };
   Object.values(ids).forEach(id => $('#' + id).parentElement.classList.remove('flag'));
   currentConfirm.forEach(k => ids[k] && $('#' + ids[k]).parentElement.classList.add('flag'));
   const box = $('#confirm');
@@ -87,7 +89,7 @@ $('#parse').addEventListener('click', async () => {
   const keep = readJob();
   const job = {
     title: p.title, artist: p.artist, feats: p.feats, date: p.date,
-    writers: p.writers, mix: p.mix,
+    writers: p.writers, producers: p.producers || [], mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || '',
     mode: p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : keep.mode), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
