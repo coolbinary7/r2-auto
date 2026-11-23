@@ -22,18 +22,19 @@
   <section class="card">
     <h2>2. Vérifie la fiche</h2>
     <label>Type de sortie
-      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option><option value="video">Vidéo (clip d’une piste déjà dans R2)</option></select>
+      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option><option value="video">ISRC vidéo (clip d’une piste déjà dans R2)</option></select>
     </label>
     <label id="isrcBox" hidden><span id="isrcLabel">ISRC de la piste complète</span> <small id="isrcHint">(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)</small><input id="f_srcIsrc" placeholder="ex. GB2DY2614066"></label>
     <div id="vidBox" hidden>
-      <label>Version title <small>(nom de la vidéo)</small><input id="f_videoVersion" placeholder="Official Music Video"></label>
-      <label>Category
+      <label>Catégorie
         <select id="f_videoCategory"><option>Official Music Video</option><option>Lyric Video</option><option>Lyric Video (Vertical)</option><option>Visualizer</option><option>Live Performance</option><option>Behind the Scenes</option><option>Documentary</option><option>EPK</option><option>Interview</option></select>
       </label>
+      <label>Version du titre <small>(remplie selon la catégorie, modifiable)</small><input id="f_videoVersion" placeholder="Official Music Video"></label>
       <label>Durée de la vidéo <small>(vide = celle de la piste audio)</small><input id="f_videoDuration" placeholder="0:02:47"></label>
       <label>ISRC vidéo <small>(si le partenaire l’a fourni ; vide = l’extension en génère un)</small><input id="f_videoIsrc" placeholder="vide = Auto-Generate"></label>
-      <label>Video Producer / Video Director <small>(une seule personne pour les deux rôles)</small><input id="f_videoCredit" placeholder="ex. 3ilyzs"></label>
-      <p class="hint"><b>ISRC vidéo :</b> l’extension retrouve la piste audio par son ISRC, la copie en ressource <b>Video</b> (« Titre - Official Music Video »), met l’ISRC vidéo fourni ou en génère un (3rd Party + Auto-Generate), l’associe à la piste (onglets <b>Assoc</b> et <b>Linked ISRCs</b>), met la durée, Video Type « Video », la catégorie, puis la même personne en Video Producer et Video Director. Aucune ressource image n’est créée. Si R2 ne connaît pas le réalisateur, crée-le dans Identify (« Create Party ») : l’extension attend.</p>
+      <label>Video Director <small>(réalisateur)</small><input id="f_videoDirector" placeholder="ex. 3ilyzs"></label>
+      <label>Video Producer <small>(souvent la même personne)</small><input id="f_videoProducer" placeholder="ex. 3ilyzs"></label>
+      <p class="hint"><b>ISRC vidéo :</b> l’extension retrouve la piste audio par son ISRC, la copie en ressource <b>Video</b> (« Titre - Official Music Video »), met l’ISRC vidéo fourni ou en génère un (3rd Party + Auto-Generate), l’associe à la piste (onglets <b>Assoc</b> et <b>Linked ISRCs</b>), met la durée, Video Type « Video », la catégorie, puis le Video Director et le Video Producer. Aucune ressource image n’est créée. Si R2 ne connaît pas le réalisateur, crée-le dans Identify (« Create Party ») : l’extension attend.</p>
     </div>
     <div id="snipBox" hidden>
       <label>Durées des snippets <small>(un par ligne, dans l’ordre, ex. 0:59)</small><textarea id="f_snippets" rows="3" placeholder="0:59&#10;0:59&#10;0:20"></textarea></label>

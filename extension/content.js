@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.7.2';
+  const VERSION = '0.7.3';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1422,8 +1422,7 @@
     if (run.stage < 5) {
       say(`5/${TOTAL} · Réalisateur et producteur vidéo…`);
       await openTab('tabBar_resources_contributors_tab_div_a', () => vis('img#img_secondary_contributors_add'), 'Contributors');
-      const credit = job.videoCredit || job.videoProducer || job.director || '';
-      const people = credit ? [[credit, 'Video Producer'], [credit, 'Video Director']] : [];
+      const people = [[job.videoProducer, 'Video Producer'], [job.director, 'Video Director']].filter(([n]) => n);
       for (const [name, role] of people) {
         if (contribRows('editSecondaryContributor').some(tr => norm(txt(tr)).includes(norm(name)) && norm(txt(tr) + ' ' + [...tr.querySelectorAll('a')].map(a => a.title + ' ' + (a.getAttribute('label') || '')).join(' ')).includes(norm(role)))) { log(`${role} déjà présent : ${name}`); continue; }
         await addContributor('secondary', name, 'Video Professionals', role, { optional: true, roleLabel: `Video Professionals / ${role}` });

@@ -45,10 +45,14 @@
     ['mode', /^(type de sortie|type|format|type de release)$/],
     ['version', /^(version|version title|titre de version)$/],
     ['snippets', /^(durees?( des (snippets?|extraits?))?|snippets?|extraits?|durees? snippets?)$/],
-    ['videoCredit', /^((credits? )?video producer\s*(\/|et|&|-)?\s*(video )?director|(credits? )?video director\s*(\/|et|&|-)?\s*(video )?producer|video producer|video director|realisateurs? (du clip|video|de la video)|credits? video|producteur video|realisateur\s*\/\s*producteur video)$/],
-    ['audioIsrc', /^(isrc audio( a rattacher| associe| lie)?|isrc de la piste audio|isrc a rattacher)$/],
-    ['videoIsrc', /^(isrc video|isrc du clip|isrc de la video)$/],
-    ['producers', /^(producteurs?|prod|producers?|beatmakers?|realisateurs?|arrangeurs?)$/],
+    ['videoCredit', /^((credits? )?video (producer|director)\s*(\/|et|&|-|and)\s*(video )?(director|producer)|credits? video|realisateur\s*(\/|et|&)\s*producteur( video)?|producteur( video)?\s*(\/|et|&)\s*realisateur)$/],
+    ['videoDirector', /^(video director|director|realisateur (du clip|video|de la video)|realisation( du clip)?)$/],
+    ['videoProducer', /^(video producer|producteur (video|du clip|de la video)|production (video|du clip))$/],
+    ['videoCategory', /^(categorie( video| du clip)?|category|type de video)$/],
+    ['realisateur', /^(realisateurs?)$/],
+    ['audioIsrc', /^(isrc audio( a rattacher| associe| lie| de la piste)?|isrc (de la )?piste( audio)?|isrc a rattacher|isrc du son|isrc audio associe)$/],
+    ['videoIsrc', /^(isrc (video|clip|du clip|de la video))$/],
+    ['producers', /^(producteurs?|prod|producers?|beatmakers?|arrangeurs?)$/],
     ['feats', /^(featuring|feat|feats|ft|artiste invite|artistes invites|invite\(s\)|featured artist)s?$/],
     ['date', /^(date de sortie|sortie|release date|date)$/],
     ['writers', /^(auteurs?|auteurs? compositeurs?|auteurs?\s*[\/&-]\s*compositeurs?|auteur-compositeur|compositeurs?|paroles et musique|paroles|paroliers?|writers?|songwriters?|composers?|ecriture|composition et paroles)$/],
@@ -61,6 +65,19 @@
     ['genre', /^(genre|genre musical|style)$/]
   ];
 
+  // catégories vidéo R2 et version (Version Title) associée
+  const VIDEO_CATS = [
+    ['Official Music Video', 'Official Music Video', /official|clip|music video|officiel/],
+    ['Lyric Video (Vertical)', 'Lyric Video', /lyric.*vertical|vertical.*lyric/],
+    ['Lyric Video', 'Lyric Video', /lyric/],
+    ['Visualizer', 'Visualizer', /visuali[sz]er/],
+    ['Live Performance', 'Live Performance', /live/],
+    ['Behind the Scenes', 'Behind The Scenes', /behind|coulisse|making/],
+    ['Documentary', 'Documentary', /docu/],
+    ['EPK', 'EPK', /epk/],
+    ['Interview', 'Interview', /interview/]
+  ];
+  function videoCategoryOf(v) { const n = norm(v); const hit = VIDEO_CATS.find(c => n === norm(c[0]) || c[2].test(n)); return hit ? hit[0] : ''; }
   const keyOf = (t) => { const k = norm(t).replace(/\s+/g, ' ').replace(/[\s:：]+$/, ''); const hit = KEYS.find(([, re]) => re.test(k)); return hit ? hit[0] : null; };
   const LIST = new Set(['feats', 'writers', 'mix', 'producers', 'artists']);
 
@@ -70,7 +87,7 @@
     if (flagged) out.toConfirm.push(field);
     if (LIST.has(field)) {
       // « 1er prod Shado », « 2e prod Nokuji » → Shado, Nokuji
-      const v = value.replace(/^\s*\d+\s*(?:er|ere|re|e|eme|ème|nd|nde)?\s*(?:prod(?:ucteur|uction)?|beat(?:maker)?)?\s*[:\-–]?\s*/i, '');
+      const v = value.replace(/^\s*\d+\s*(?:er|ere|re|e|eme|ème|nd|nde)?\s+(?:prod(?:ucteur|uction)?|beat(?:maker)?)?\s*[:\-–]?\s*|^\s*\d+\s*(?:er|ere|re|e|eme|ème|nd|nde)?\s*(?:prod(?:ucteur|uction)?|beat(?:maker)?)\s*[:\-–]?\s*/i, '');
       out[field] = out[field].concat(splitNames(v));
     } else if (field === 'snippets') {
       out.snippets = out.snippets.concat((value.match(/\d{1,2}:\d{2}/g) || []));
@@ -79,8 +96,12 @@
     } else if (field === 'audioIsrc' || field === 'videoIsrc') {
       const m = value.match(/[A-Z]{2}-?[A-Z0-9]{3}-?\d{2}-?\d{5}/i);
       out[field] = m ? m[0].replace(/-/g, '').toUpperCase() : '';
-    } else if (field === 'videoCredit') {
-      out.videoCredit = String(value).replace(/^[-–:\s]+/, '').trim();
+    } else if (field === 'videoCredit' || field === 'videoDirector' || field === 'videoProducer' || field === 'realisateur') {
+      const v = String(value).replace(/^[-–:\s]+/, '').trim();
+      if (field === 'videoCredit') { out.videoDirector = out.videoDirector || v; out.videoProducer = out.videoProducer || v; }
+      else out[field] = out[field] || v;
+    } else if (field === 'videoCategory') {
+      out.videoCategory = videoCategoryOf(value);
     } else if (field === 'isrc') {
       out.isrcAuto = /generer|generate|auto|a creer|nouveau/.test(norm(value)) || !/[A-Z]{2}[A-Z0-9]{3}\d{7}/i.test(value);
       const m = value.match(/[A-Z]{2}-?[A-Z0-9]{3}-?\d{2}-?\d{5}/i); if (m && !out.isrcAuto) out.isrc = m[0].replace(/-/g, '').toUpperCase();
@@ -105,7 +126,7 @@
   }
 
   function parseMail(text) {
-    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', audioIsrc: '', videoIsrc: '', videoCredit: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
+    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', audioIsrc: '', videoIsrc: '', videoDirector: '', videoProducer: '', videoCategory: '', realisateur: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
     // mise en forme ajoutée par Copilot / ChatGPT / Outlook : **gras**, __gras__, # titres, `code`
     text = decode(text).replace(/\*\*|__|`/g, '').replace(/^\s*#{1,6}\s*/gm, '').replace(/\u00a0/g, ' ');
     if (!parseTable(text, out)) {
@@ -158,7 +179,15 @@
     if (f) { out.artist = f[1].trim(); out.feats = out.feats.concat(splitNames(f[2])); }
     const uniq = (a) => { const seen = new Set(); return a.filter(x => { const k = norm(x); if (seen.has(k)) return false; seen.add(k); return true; }); };
     out.feats = uniq(out.feats); out.writers = uniq(out.writers); out.mix = uniq(out.mix); out.producers = uniq(out.producers);
-    if (!out.writers.length) out.toConfirm.push('writers');
+    // vidéo : dès qu'un champ propre à la vidéo est là, ce n'est pas un single
+    const vidField = !!(out.audioIsrc || out.videoIsrc || out.videoDirector || out.videoProducer || out.videoCategory);
+    if (vidField && out.mode !== 'snippet') out.mode = 'video';
+    if (out.mode === 'video') {
+      if (out.realisateur && !out.videoDirector) out.videoDirector = out.realisateur;
+      if (!out.audioIsrc && out.isrc && !out.videoIsrc) out.audioIsrc = out.isrc; // « ISRC : … » seul dans un mail vidéo = la piste audio
+      if (!out.videoCategory && out.version) out.videoCategory = videoCategoryOf(out.version);
+    } else if (out.realisateur) out.producers = uniq(out.producers.concat(splitNames(out.realisateur)));
+    if (!out.writers.length && out.mode !== 'video') out.toConfirm.push('writers');
     // « Artiste principal : DIBY PROD » alors que c'est le label
     const k2 = (x) => norm(x).replace(/[^a-z0-9]/g, '').replace(/prod(uction)?s?$/, '');
     if (out.artist && out.label && k2(out.artist) === k2(out.label)) { out.toConfirm.push('artist'); out.notes.push(`l’artiste principal « ${out.artist} » est le nom du label : mets le vrai artiste`); }
@@ -189,7 +218,7 @@
     return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
   };
 
-  const api = { parseMail, parseDate, wavDuration, fmtDuration, splitNames };
+  const api = { VIDEO_CATS, videoCategoryOf, parseMail, parseDate, wavDuration, fmtDuration, splitNames };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.R2Parse = api;
 })(typeof window !== 'undefined' ? window : globalThis);
