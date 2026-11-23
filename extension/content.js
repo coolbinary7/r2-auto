@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.7.1';
+  const VERSION = '0.7.2';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1220,33 +1220,34 @@
   async function makeSnippet(job, run, k) {
     // déjà créé (reprise) ?
     if (resourceList().some(r => !r.cover && norm(r.title) === norm(snipTitle(job, k)))) { log(`snippet ${k} déjà présent`); return; }
-    const srcTitle = k === 1 ? job.title : snipTitle(job, k - 1);
-    say(`Snippet ${k} · copie de « ${srcTitle} »…`);
+    // Chaque snippet est une copie de LA ressource de la piste complète, retrouvée par son ISRC (c'est elle qui porte le work).
+    // Jamais par le titre, jamais depuis le snippet précédent.
+    const isrc = String(job.srcIsrc || run.srcIsrc || '').toUpperCase();
+    say(`Snippet ${k} · copie de la piste ISRC ${isrc}…`);
+    const openIsrc = () => (($id('isrc_resource_id') || {}).value || '').replace(/\W/g, '').toUpperCase();
+    const srcOpen = () => screen() === 'resourceAudio' && openIsrc() === isrc;
     if (screen() !== 'copyResource') {
-      // Snippet 1 : on duplique la ressource de la piste complète, celle qui porte le work.
-      // ISRC donné → cette ressource-là ; sinon, parmi les ressources du même titre, la plus ancienne (l'originale, pas une copie).
-      let node;
-      if (k === 1) {
-        const same = resourceList().filter(r => !r.cover && norm(r.title) === norm(srcTitle));
-        if (same.length > 1) log(`${same.length} ressources « ${srcTitle} » : ${same.map(r => r.code).join(', ')}`);
-        node = await findResourceNode(srcTitle, { cover: false, timeout: 60000, codes: [job.srcIsrc], oldest: true });
-        if (job.srcIsrc && (!node || String(node.code).toUpperCase() !== job.srcIsrc)) {
-          log(`ressource ISRC ${job.srcIsrc} introuvable dans RESOURCES`);
-          node = null; run.srcIsrc = job.srcIsrc; await saveRun(run);
-          await until(() => screen() === 'copyResource', 500, `Je ne trouve pas la ressource ISRC ${job.srcIsrc} dans RESOURCES. Fais clic droit → Copy sur la ressource de la piste complète (celle qui a le work), je reprends.`);
-        }
-      } else node = await findResourceNode(srcTitle, { cover: false, timeout: 60000 });
-      if (node && k === 1) { run.srcIsrc = node.code; await saveRun(run); log('piste complète dupliquée : ' + node.text); }
-      // la ressource source est ouverte à l'écran (cas du snippet précédent) : bouton « Copy Resource » de la barre d'outils
-      const srcOpen = () => screen() === 'resourceAudio' && titleIs(job.title) && norm(($id('version_title') || {}).value || '') === norm(k === 1 ? '' : snipName(k - 1));
-      if (srcOpen()) await toolbarCopy();
-      for (let i = 0; node && i < 2 && screen() !== 'copyResource'; i++) {
-        if (await contextCopy(node.el)) { await waitScreen('copyResource', 8000); continue; }
-        // menu clic droit absent : on ouvre la ressource, puis bouton « Copy Resource »
-        await openNode(node.el); await waitIdle();
-        if (await waitFor(() => srcOpen() || (k === 1 && screen() === 'resourceAudio'), 15000)) await toolbarCopy();
+      let node = await findResourceNode('', { cover: false, timeout: 30000, codes: [isrc] });
+      if (node && String(node.code).toUpperCase() !== isrc) node = null;
+      if (!node) {
+        log(`ressource ISRC ${isrc} introuvable dans RESOURCES`);
+        const r = await pause(`Je ne trouve pas la ressource ISRC ${isrc} dans RESOURCES. Déplie RESOURCES du bon projet (ou ouvre cette ressource) : je continue tout seul.`,
+          () => srcOpen() || !!(node = resourceList().find(x => !x.cover && String(x.code).toUpperCase() === isrc)));
+        if (r === 'stop') throw new Stop();
       }
-      await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur « ${srcTitle} » dans RESOURCES, je reprends.`);
+      if (node) log(`snippet ${k} : copie de ${node.text}`);
+      // 1) on ouvre la ressource de l'ISRC et on vérifie son ISRC à l'écran, puis bouton « Copy Resource »
+      for (let i = 0; i < 2 && screen() !== 'copyResource'; i++) {
+        if (!srcOpen() && node) { await openNode(node.el); await waitIdle(); await waitFor(srcOpen, 15000); }
+        if (srcOpen()) { await toolbarCopy(); if (await waitScreen('copyResource', 8000)) break; }
+        // 2) secours : clic droit → Copy sur la ressource de l'ISRC
+        if (node && await contextCopy(node.el)) await waitScreen('copyResource', 8000);
+      }
+      if (screen() !== 'copyResource') {
+        if (srcOpen()) await toolbarCopy();
+        await until(() => screen() === 'copyResource', 500, `Ouvre la ressource ISRC ${isrc} (la piste complète, celle qui a le work) et clique « Copy Resource ». Je reprends.`);
+      }
+      log(`snippet ${k} : copie lancée depuis l’ISRC ${isrc}`);
     }
     await fillCopySnippet(job, k);
     await until(() => screen() === 'resourceAudio' && titleIs(job.title), 60000, `Ouvre la nouvelle ressource « ${snipTitle(job, k)} » (double-clic dans RESOURCES), je continue ensuite.`);
