@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.7.0';
+  const VERSION = '0.7.1';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1296,6 +1296,7 @@
     const isrc = String(job.srcIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (!isrc) throw new Error('mode ISRC vidéo : indique l’ISRC de la piste audio dans le panneau');
     const vVersion = job.videoVersion || 'Official Music Video';
+    const vIsrc = String(job.videoIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     const vCategory = job.videoCategory || 'Official Music Video';
     const TOTAL = 5;
     const prev = data.state.run;
@@ -1347,13 +1348,23 @@
 
     // 2. fiche vidéo : ISRC, durée, type, catégorie
     if (run.stage < 2) {
-      say(`2/${TOTAL} · ISRC, durée, Video Type, Category…`);
+      say(`2/${TOTAL} · ISRC ${vIsrc ? 'vidéo fourni (' + vIsrc + ')' : 'auto'}, durée, Video Type, Category…`);
       const third = $id('isrc_id_type_third');
       if (third) {
         check(third, true); await sleep(600);
         const auto = await waitFor(() => { const a = $id('auto_gen'); return a && visible(a) && !a.disabled ? a : null; }, 4000);
-        if (auto) { check(auto, true); await sleep(500); } else log('case Auto-Generate indisponible');
+        if (vIsrc) {
+          // ISRC fourni par le partenaire : 3rd Party, sans Auto-Generate, saisi tel quel
+          if (auto && auto.checked) { check(auto, false); await sleep(500); }
+          const f = await waitFor(() => { const e = $id('isrc_resource_id'); return e && !e.disabled ? e : null; }, 4000);
+          if (f) { setText(f, vIsrc); await sleep(400); log('ISRC vidéo fourni : ' + vIsrc); }
+          else {
+            const r = await pause(`Saisis l’ISRC vidéo ${vIsrc} dans le champ ISRC/ID (3rd Party, sans Auto-Generate), puis Continuer.`);
+            if (r === 'stop') throw new Stop();
+          }
+        } else if (auto) { check(auto, true); await sleep(500); } else log('case Auto-Generate indisponible');
       }
+      const vt0 = $id('version_title'); if (vt0 && norm(vt0.value) !== norm(vVersion)) setText(vt0, vVersion);
       const dur = job.videoDuration || run.audioDur;
       const d = await waitFor(() => { const e = $id('duration'); return e && visible(e) && !e.disabled ? e : null; }, 5000);
       if (d && dur) { setText(d, durationDigits(dur)); await sleep(500); if (seconds(d.value) !== seconds(dur)) setText(d, durationFull(dur)); log(`durée : ${d.value}`); }
@@ -1377,6 +1388,7 @@
       await dropInto(node, () => { const g = grid(); return g && (g.querySelector('div.objbox') || g); }, inGrid, 'piste audio (Assoc)',
         `Onglet Assoc : glisse la piste « ${audio.text} » depuis RESOURCES jusque dans la grille. Je continue dès qu’elle y est.`);
       await waitIdle();
+      await saveAndCheck('img#img_saveActionIcon', 'l’association (Assoc)');
       await done(3);
     }
 
@@ -1409,17 +1421,18 @@
     if (run.stage < 5) {
       say(`5/${TOTAL} · Réalisateur et producteur vidéo…`);
       await openTab('tabBar_resources_contributors_tab_div_a', () => vis('img#img_secondary_contributors_add'), 'Contributors');
-      const people = [[job.director, 'Video Director'], [job.videoProducer, 'Video Producer']].filter(([n]) => n);
+      const credit = job.videoCredit || job.videoProducer || job.director || '';
+      const people = credit ? [[credit, 'Video Producer'], [credit, 'Video Director']] : [];
       for (const [name, role] of people) {
         if (contribRows('editSecondaryContributor').some(tr => norm(txt(tr)).includes(norm(name)) && norm(txt(tr) + ' ' + [...tr.querySelectorAll('a')].map(a => a.title + ' ' + (a.getAttribute('label') || '')).join(' ')).includes(norm(role)))) { log(`${role} déjà présent : ${name}`); continue; }
         await addContributor('secondary', name, 'Video Professionals', role, { optional: true, roleLabel: `Video Professionals / ${role}` });
       }
-      if (!people.length) notes.push('pas de réalisateur ni de producteur vidéo dans la fiche : à ajouter à la main');
+      if (!people.length) notes.push('pas de « Video Producer / Video Director » dans la fiche : crédit vidéo à ajouter à la main');
       await saveAndCheck('img#img_saveActionIcon', 'la vidéo');
       await done(5);
     }
     const code = ($id('isrc_resource_id') && $id('isrc_resource_id').value) || run.videoIsrc || '';
-    return (`Terminé ✓ ISRC vidéo « ${run.title} - ${vVersion} »${code ? ' : ' + code : ''}. Associée à la piste ${isrc} (Assoc + Linked ISRCs).${notes.length ? ' À vérifier : ' + notes.join(' ; ') + '.' : ''}`);
+    return (`Terminé ✓ ${vIsrc ? 'ISRC fourni' : 'ISRC généré'} · vidéo « ${run.title} - ${vVersion} »${code ? ' : ' + code : ''}. Associée à la piste ${isrc} (Assoc + Linked ISRCs).${notes.length ? ' À vérifier : ' + notes.join(' ; ') + '.' : ''}`);
   }
 
   // ---------- Tout enchaîner ----------

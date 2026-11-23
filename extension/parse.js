@@ -45,6 +45,9 @@
     ['mode', /^(type de sortie|type|format|type de release)$/],
     ['version', /^(version|version title|titre de version)$/],
     ['snippets', /^(durees?( des (snippets?|extraits?))?|snippets?|extraits?|durees? snippets?)$/],
+    ['videoCredit', /^((credits? )?video producer\s*(\/|et|&|-)?\s*(video )?director|(credits? )?video director\s*(\/|et|&|-)?\s*(video )?producer|video producer|video director|realisateurs? (du clip|video|de la video)|credits? video|producteur video|realisateur\s*\/\s*producteur video)$/],
+    ['audioIsrc', /^(isrc audio( a rattacher| associe| lie)?|isrc de la piste audio|isrc a rattacher)$/],
+    ['videoIsrc', /^(isrc video|isrc du clip|isrc de la video)$/],
     ['producers', /^(producteurs?|prod|producers?|beatmakers?|realisateurs?|arrangeurs?)$/],
     ['feats', /^(featuring|feat|feats|ft|artiste invite|artistes invites|invite\(s\)|featured artist)s?$/],
     ['date', /^(date de sortie|sortie|release date|date)$/],
@@ -73,12 +76,17 @@
       out.snippets = out.snippets.concat((value.match(/\d{1,2}:\d{2}/g) || []));
     } else if (field === 'date') {
       out.date = out.date || parseDate(value);
+    } else if (field === 'audioIsrc' || field === 'videoIsrc') {
+      const m = value.match(/[A-Z]{2}-?[A-Z0-9]{3}-?\d{2}-?\d{5}/i);
+      out[field] = m ? m[0].replace(/-/g, '').toUpperCase() : '';
+    } else if (field === 'videoCredit') {
+      out.videoCredit = String(value).replace(/^[-–:\s]+/, '').trim();
     } else if (field === 'isrc') {
       out.isrcAuto = /generer|generate|auto|a creer|nouveau/.test(norm(value)) || !/[A-Z]{2}[A-Z0-9]{3}\d{7}/i.test(value);
       const m = value.match(/[A-Z]{2}-?[A-Z0-9]{3}-?\d{2}-?\d{5}/i); if (m && !out.isrcAuto) out.isrc = m[0].replace(/-/g, '').toUpperCase();
     } else if (field === 'mode') {
       const v = norm(value);
-      out.mode = /snippet|extrait/.test(v) ? 'snippet' : /album|ep\b|deluxe/.test(v) ? 'album' : 'single';
+      out.mode = /snippet|extrait/.test(v) ? 'snippet' : /video|clip/.test(v) ? 'video' : /album|ep\b|deluxe/.test(v) ? 'album' : 'single';
       out.type = value;
     } else if (!out[field]) {
       out[field] = value;
@@ -97,7 +105,7 @@
   }
 
   function parseMail(text) {
-    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
+    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', audioIsrc: '', videoIsrc: '', videoCredit: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
     // mise en forme ajoutée par Copilot / ChatGPT / Outlook : **gras**, __gras__, # titres, `code`
     text = decode(text).replace(/\*\*|__|`/g, '').replace(/^\s*#{1,6}\s*/gm, '').replace(/\u00a0/g, ' ');
     if (!parseTable(text, out)) {

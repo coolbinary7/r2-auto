@@ -17,7 +17,7 @@ const DEFAULTS = {
   fixYears: true
 };
 
-const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'producers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc', 'videoVersion', 'videoCategory', 'videoDuration', 'director', 'videoProducer'];
+const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'producers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc', 'videoVersion', 'videoCategory', 'videoDuration', 'director', 'videoProducer', 'videoIsrc'];
 const LABELS = { isrc: 'ISRC de la piste complète', snippets: 'durées des snippets', title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', producers: 'producteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
@@ -35,7 +35,8 @@ function readJob() {
     snippets: $('#f_snippets').value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean),
     srcIsrc: $('#f_srcIsrc').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
     videoVersion: $('#f_videoVersion').value.trim(), videoCategory: $('#f_videoCategory').value, videoDuration: $('#f_videoDuration').value.trim(),
-    director: $('#f_director').value.trim(), videoProducer: $('#f_videoProducer').value.trim(),
+    director: $('#f_videoCredit').value.trim(), videoProducer: $('#f_videoCredit').value.trim(),
+    videoIsrc: $('#f_videoIsrc').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
     isrcAuto: $('#f_isrcAuto').checked,
     toConfirm: currentConfirm,
     extra: currentExtra
@@ -56,12 +57,12 @@ function showJob(j) {
   $('#f_genre').value = j.genre || '';
   $('#f_mode').value = ['snippet', 'video'].includes(j.mode) ? j.mode : 'single';
   $('#f_videoVersion').value = j.videoVersion || ''; $('#f_videoCategory').value = j.videoCategory || 'Official Music Video';
-  $('#f_videoDuration').value = j.videoDuration || ''; $('#f_director').value = j.director || ''; $('#f_videoProducer').value = j.videoProducer || '';
+  $('#f_videoDuration').value = j.videoDuration || ''; $('#f_videoCredit').value = j.director || j.videoProducer || ''; $('#f_videoIsrc').value = j.videoIsrc || '';
   $('#f_snippets').value = (j.snippets || []).join('\n');
   $('#f_srcIsrc').value = j.srcIsrc || '';
   showMode();
   $('#f_isrcAuto').checked = j.isrcAuto !== false;
-  currentConfirm = (j.toConfirm || []).filter(k => !(j.mode === 'snippet' && ['writers', 'producers', 'mix', 'title', 'feats'].includes(k)));
+  currentConfirm = (j.toConfirm || []).filter(k => !(['snippet', 'video'].includes(j.mode) && ['writers', 'producers', 'mix', 'title', 'feats'].includes(k)));
   currentExtra = j.extra || {};
   const ids = { title: 'f_title', artist: 'f_artist', feats: 'f_feats', date: 'f_date', writers: 'f_writers', producers: 'f_producers', mix: 'f_mix', duration: 'f_duration' };
   Object.values(ids).forEach(id => $('#' + id).parentElement.classList.remove('flag'));
@@ -102,22 +103,25 @@ $('#parse').addEventListener('click', async () => {
     writers: p.writers, producers: p.producers || [], mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || '',
-    mode: p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : keep.mode), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
-    srcIsrc: (p.mode === 'snippet' && p.isrc) ? p.isrc : keep.srcIsrc,
+    mode: (p.mode === 'video' || p.audioIsrc) ? 'video' : p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : keep.mode), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
+    srcIsrc: p.audioIsrc ? p.audioIsrc : (p.mode === 'snippet' && p.isrc) ? p.isrc : keep.srcIsrc,
+    director: p.videoCredit || '', videoProducer: p.videoCredit || '', videoIsrc: p.videoIsrc || '', videoVersion: 'Official Music Video', videoCategory: keep.videoCategory,
     isrcAuto: p.isrcAuto, toConfirm: p.toConfirm,
     extra: { territory: p.territory, upc: p.upc, label: p.label }
   };
   showJob(job);
   await save();
-  const missing = (job.mode === 'snippet' ? ['artist', 'date'] : ['title', 'artist', 'date']).filter(k => !job[k]);
+  const missing = (job.mode === 'video' ? [] : job.mode === 'snippet' ? ['artist', 'date'] : ['title', 'artist', 'date']).filter(k => !job[k]);
+  if (job.mode === 'video' && !job.srcIsrc) missing.push('isrc');
+  if (job.mode === 'video' && !job.director) missing.push('crédit vidéo');
   if (job.mode === 'snippet' && !job.srcIsrc) missing.push('isrc');
   if (job.mode === 'snippet' && !(job.snippets || []).length) missing.push('snippets');
-  if (!job.writers.length && job.mode !== 'snippet') missing.push('writers');
+  if (!job.writers.length && !['snippet', 'video'].includes(job.mode)) missing.push('writers');
   const notes = (p.notes || []).concat(p.mode === 'album' ? ['type « album » : pas encore automatisé, fais-le à la main'] : []);
   $('#parseMsg').style.color = missing.length ? 'var(--red)' : '';
   $('#parseMsg').textContent = (missing.length
     ? 'Pas trouvé : ' + missing.map(k => LABELS[k] || k).join(', ') + '. Complète à la main (ou demande un mail au format modèle).'
-    : (job.mode === 'snippet' ? 'Fiche snippet remplie.' : 'Fiche remplie. Ajoute le WAV pour la durée.')) + (notes.length ? ' — ' + notes.join(' ; ') : '');
+    : (job.mode === 'video' ? 'Fiche vidéo remplie (ISRC audio, crédit vidéo' + (job.videoIsrc ? ', ISRC vidéo fourni' : ', ISRC vidéo à générer') + ').' : job.mode === 'snippet' ? 'Fiche snippet remplie.' : 'Fiche remplie. Ajoute le WAV pour la durée.')) + (notes.length ? ' — ' + notes.join(' ; ') : '');
 });
 
 document.querySelectorAll('section input, section textarea').forEach(el => {
@@ -234,7 +238,7 @@ $('#resumeR2').addEventListener('click', () => sendCmd('resume'));
 // modèle de mail à copier
 const MAIL_MODEL = `MISE EN LIGNE – ARTISTE PRINCIPAL – TITRE – SORTIE LE JJ/MM/AAAA
 
-Type de sortie : Single / Snippet / Album
+Type de sortie : Single / Snippet / Album / Vidéo
 Date de sortie : JJ/MM/AAAA
 Artiste principal :
 Featuring :
@@ -250,6 +254,9 @@ Label :
 Territoire : Monde
 UPC : à générer
 ISRC : à générer
+ISRC audio à rattacher : (vidéo seulement)
+Video Producer / Video Director : (vidéo seulement)
+ISRC vidéo : (vidéo seulement, vide = à générer)
 Assets : (lien)`;
 $('#copyModel').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(MAIL_MODEL); $('#parseMsg').style.color = ''; $('#parseMsg').textContent = 'Modèle de mail copié : colle-le dans ton mail ou envoie-le aux labels.'; }
