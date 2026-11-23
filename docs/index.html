@@ -68,13 +68,13 @@
       </div>
       <aside class="side">
         <div class="side-label">État du projet</div>
-        <div class="ver">Auto R2 0.6.0</div>
+        <div class="ver">Auto R2 0.7.0</div>
         <span class="state">En test</span>
-        <a class="btn p" href="./downloads/Auto-R2-0.6.0.zip" download>Télécharger Auto R2 0.6.0</a>
+        <a class="btn p" href="./downloads/Auto-R2-0.7.0.zip" download>Télécharger Auto R2 0.7.0</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Firefox-0.2.0.zip" download>Recorder 0.2.0 pour Firefox (R2)</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Chrome-0.2.0.zip">Recorder 0.2.0 pour Chrome (RWS, CWS, AIT)</a>
         <a class="btn" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="#tuto">▶ Voir le tuto vidéo (2 min)</a>
-        <p class="note">Aujourd’hui : <b>single</b> et <b>snippets</b> d’un artiste qui a déjà une sortie dans R2. Album, deluxe, remix, snippet : voir <a href="#records" style="color:var(--accent)">les enregistrements à fournir</a>.</p>
+        <p class="note">Aujourd’hui : <b>single</b>, <b>snippets</b> et <b>ISRC vidéo (clip)</b> d’un artiste qui a déjà une sortie dans R2. Album, deluxe, remix, snippet : voir <a href="#records" style="color:var(--accent)">les enregistrements à fournir</a>.</p>
       </aside>
     </section>
 
@@ -129,6 +129,7 @@ Assets : (lien)</pre>
       <ul>
         <li><b>Artiste principal</b> : un seul nom. Les invités vont dans <b>Featuring</b>.</li>
         <li><b>Auteurs</b> : obligatoires pour R2 (Prénom Nom).</li>
+        <li><b>ISRC vidéo</b> : choisis « ISRC vidéo » dans Type de sortie, puis l’<b>ISRC de la piste audio</b>, le <b>réalisateur</b> et le <b>producteur vidéo</b>. Le reste (titre, durée) vient de la piste.</li>
         <li><b>Snippet</b> : il ne faut que l’artiste principal, la date, l’<b>ISRC de la piste complète</b> (ligne « ISRC ») et les <b>durées des snippets</b>. Titre, auteurs et mix viennent de la piste complète.</li>
         <li><b>Tableau</b> : une ligne = un titre ; un album = plusieurs lignes avec le même UPC et le même « Projet ». Dans Auto R2, tu peux coller la ligne des titres + la ligne du morceau à la place du mail. Le même fichier s’importe dans Auto Release (Linkfire). Il s’ouvre aussi dans Google Sheets.</li>
         <li>Mail rédigé avec Copilot ou ChatGPT : les étoiles de mise en gras (<code>**Titre :**</code>) sont ignorées, pas besoin de les enlever.</li>
@@ -173,6 +174,7 @@ Assets : (lien)</pre>
           <tr><td>EP / single plusieurs titres</td><td>Une sortie de 2 à 6 titres, si la saisie diffère de celle d’un album (configuration, numérotation).</td><td><span class="tag todo">À fournir</span></td></tr>
           <tr><td>Album deluxe</td><td>Une version deluxe d’un album <b>déjà dans R2</b> : anciennes pistes réutilisées + nouvelles pistes ajoutées, version title, nouvelle cover.</td><td><span class="tag todo">À fournir</span></td></tr>
           <tr><td>Remix</td><td>Un remix d’un titre <b>déjà dans R2</b> : version title, remixeur, lien avec l’œuvre d’origine, ISRC.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>ISRC vidéo (clip)</td><td>Ressource vidéo copiée d’une piste audio : ISRC auto, Assoc, Linked ISRCs, catégorie, réalisateur et producteur vidéo.</td><td><span class="tag ok">Reçu · automatisé (0.7)</span></td></tr>
           <tr><td>Snippet audio</td><td>Plusieurs extraits d’une piste déjà dans R2 (configuration eSnippet Audio), à partir de la dernière sortie snippet de l’artiste.</td><td><span class="tag ok">Reçu · automatisé (0.5)</span></td></tr>
           <tr><td>Nouvel artiste</td><td>Une première sortie pour un artiste <b>sans aucune sortie dans R2</b> (rien à copier) : création du projet si besoin, de la release et de la piste à partir de zéro.</td><td><span class="tag todo">À fournir</span></td></tr>
         </tbody>
@@ -221,7 +223,7 @@ Assets : (lien)</pre>
       <p class="note">Si tu t’es trompé en cours de route, ce n’est pas grave : note-le dans ton message (« j’ai ouvert la copie par erreur vers la fin »), ça évite d’automatiser une erreur.</p>
     </div>
 
-    <footer>Outil interne non officiel · Auto R2 0.6.0 · Recorder 0.2.0 (Firefox et Chrome)</footer>
+    <footer>Outil interne non officiel · Auto R2 0.7.0 · Recorder 0.2.0 (Firefox et Chrome)</footer>
   </main>
   <script>document.querySelectorAll('.chaps button').forEach(b=>b.addEventListener('click',()=>{const v=b.closest('.tuto').querySelector('video');v.currentTime=+b.dataset.t;v.play();}));</script>
 <style>

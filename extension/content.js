@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.6.0';
+  const VERSION = '0.7.0';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1141,7 +1141,7 @@
     const code = (d[PROJ] || {})[norm(job.artist)];
     const link = code && projectLinks().find(a => txt(a) === code);
     if (!link) return;
-    say(`1/${TOTAL} · Ouverture du projet ${code}…`);
+    say(`Ouverture du projet ${code}…`);
     click(link);
     await sleep(800);
     await waitIdle();
@@ -1288,6 +1288,140 @@
     }
   }
 
+  // ---------- ISRC vidéo (clip) : enregistrement de Ced du 23/11/2026 ----------
+  // piste audio (par ISRC) → Copy Resource en « Video » → ISRC 3rd Party + Auto-Generate → Assoc (piste audio)
+  // → Linked ISRCs (ISRC audio) → durée, Video Type, Category → Video Director / Video Producer → Save
+  async function runVideo(job, resume) {
+    const data = await get();
+    const isrc = String(job.srcIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (!isrc) throw new Error('mode ISRC vidéo : indique l’ISRC de la piste audio dans le panneau');
+    const vVersion = job.videoVersion || 'Official Music Video';
+    const vCategory = job.videoCategory || 'Official Music Video';
+    const TOTAL = 5;
+    const prev = data.state.run;
+    const run = (resume && prev && prev.video && prev.srcIsrc === isrc) ? prev : { video: true, srcIsrc: isrc, stage: 0 };
+    if (!resume) await browser.storage.local.set({ [STATE]: { steps: {}, run } });
+    const done = async (n) => { run.stage = n; run.total = TOTAL; await saveRun(run); log(`étape ${n}/${TOTAL} terminée`); };
+    log(`=== ${resume ? 'reprise à l’étape ' + (run.stage + 1) : 'départ'} : ISRC vidéo pour ${isrc} (Auto R2 ${VERSION})`);
+    const onVideo = () => screen() === 'resourceAudio' && run.title && titleIs(run.title) && norm(($id('version_title') || {}).value || '') === norm(vVersion);
+
+    // 1. piste audio → copie en vidéo
+    say(`1/${TOTAL} · Recherche de la piste audio ${isrc}…`);
+    await ensureProject(job);
+    let audio = await findResourceNode('', { cover: false, codes: [isrc], timeout: 20000 });
+    if (!audio) {
+      const r = await pause(`Je ne trouve pas l’ISRC ${isrc} dans RESOURCES. Ouvre le projet du label où se trouve la piste (et déplie RESOURCES) : je continue tout seul.`,
+        () => !!(audio = resourceList().find(x => !x.cover && String(x.code).toUpperCase() === isrc)));
+      if (r === 'stop') throw new Stop();
+    }
+    run.title = audio.title; run.audioText = audio.text;
+    run.audioDur = (audio.text.split('|').pop() || '').trim();
+    await saveRun(run);
+    log('piste audio : ' + audio.text);
+    if (run.stage < 1) {
+      const existing = resourceList().find(r => !r.cover && norm(r.title) === norm(`${audio.title} - ${vVersion}`));
+      if (existing) {
+        const r = await pause(`Une ressource « ${audio.title} - ${vVersion} » existe déjà (essai précédent ?). « Continuer » en crée une nouvelle ; « Arrêter » pour garder l’existante.`);
+        if (r === 'stop') throw new Stop();
+      }
+      say(`1/${TOTAL} · Copie de « ${audio.title} » en vidéo…`);
+      if (!(screen() === 'resourceAudio' && titleIs(audio.title) && !norm(($id('version_title') || {}).value || ''))) { await openNode(audio.el); await waitIdle(); }
+      await waitFor(() => screen() === 'resourceAudio' && titleIs(audio.title), 20000);
+      if (!await toolbarCopy()) { await contextCopy(audio.el); await waitScreen('copyResource', 8000); }
+      while (screen() !== 'copyResource') await until(() => screen() === 'copyResource', 500, `Ouvre « ${audio.title} » puis clique l’icône « Copy Resource ». Je reprends.`);
+      const type = $id('copy_resource_type_0');
+      if (type) { try { setSelect(type, 'Video'); } catch (e) { log('type : ' + e.message); } await sleep(700); await waitIdle(); }
+      const t = $id('copy_resource_title_0'); if (t) { setText(t, audio.title); await sleep(300); }
+      const v = $id('copy_resource_version_title_0'); if (v) { setText(v, vVersion); await sleep(300); }
+      log(`copie : Video · « ${audio.title} » · version « ${vVersion} »`);
+      const sv = vis('a#saveButton[onclick*="copyResource"]'); if (sv) click(sv);
+      await waitIdle();
+      await until(onVideo, 60000, `Ouvre la nouvelle ressource « ${audio.title} - ${vVersion} » (Video), je continue ensuite.`);
+      await done(1);
+    }
+    if (!onVideo()) {
+      const node = resourceList().filter(r => !r.cover && norm(r.title) === norm(`${audio.title} - ${vVersion}`)).sort((a, b) => b.id - a.id)[0];
+      if (node) { await openNode(node.el); await waitIdle(); }
+      await until(onVideo, 30000, `Ouvre la ressource vidéo « ${audio.title} - ${vVersion} », je continue ensuite.`);
+    }
+
+    // 2. fiche vidéo : ISRC, durée, type, catégorie
+    if (run.stage < 2) {
+      say(`2/${TOTAL} · ISRC, durée, Video Type, Category…`);
+      const third = $id('isrc_id_type_third');
+      if (third) {
+        check(third, true); await sleep(600);
+        const auto = await waitFor(() => { const a = $id('auto_gen'); return a && visible(a) && !a.disabled ? a : null; }, 4000);
+        if (auto) { check(auto, true); await sleep(500); } else log('case Auto-Generate indisponible');
+      }
+      const dur = job.videoDuration || run.audioDur;
+      const d = await waitFor(() => { const e = $id('duration'); return e && visible(e) && !e.disabled ? e : null; }, 5000);
+      if (d && dur) { setText(d, durationDigits(dur)); await sleep(500); if (seconds(d.value) !== seconds(dur)) setText(d, durationFull(dur)); log(`durée : ${d.value}`); }
+      const vt = $id('video_type'); if (vt) { try { setSelect(vt, 'Video'); } catch (e) { notes.push('Video Type à choisir à la main'); } }
+      const cat = $id('category'); if (cat) { try { setSelect(cat, vCategory); } catch (e) { notes.push(`Category « ${vCategory} » absente : à choisir à la main`); } }
+      await sleep(400);
+      await saveAndCheck('img#img_saveActionIcon', 'la vidéo');
+      const code = $id('isrc_resource_id') && $id('isrc_resource_id').value;
+      if (code) { run.videoIsrc = code; log(`ISRC vidéo : ${code}`); }
+      await done(2);
+    }
+
+    // 3. Assoc : la piste audio
+    if (run.stage < 3) {
+      say(`3/${TOTAL} · Onglet Assoc : association à la piste audio…`);
+      await openTab('tabBar_resources_associations_tab_div_a', () => vis('#assoicated_resources_grid') || vis('#associated_resources_grid'), 'Assoc');
+      await sleep(600);
+      const grid = () => $id('assoicated_resources_grid') || $id('associated_resources_grid');
+      const inGrid = () => { const g = grid(); return !!g && norm(txt(g)).includes(isrc.toLowerCase()); };
+      const node = resourceList().find(r => !r.cover && String(r.code).toUpperCase() === isrc) || audio;
+      await dropInto(node, () => { const g = grid(); return g && (g.querySelector('div.objbox') || g); }, inGrid, 'piste audio (Assoc)',
+        `Onglet Assoc : glisse la piste « ${audio.text} » depuis RESOURCES jusque dans la grille. Je continue dès qu’elle y est.`);
+      await waitIdle();
+      await done(3);
+    }
+
+    // 4. Linked ISRCs : l'ISRC audio
+    if (run.stage < 4) {
+      say(`4/${TOTAL} · Onglet Linked ISRCs : ISRC audio ${isrc}…`);
+      await openTab('tabBar_resources_linked_tab_div_a', () => vis('img#img_linked_audio_label_add'), 'Linked ISRCs');
+      const linked = () => [...document.querySelectorAll('td')].some(td => visible(td) && td.textContent.trim().toUpperCase() === isrc && !td.closest('#isrcLookupGrid, .modal, [id*="lookup" i]'));
+      if (!linked()) {
+        click(vis('img#img_linked_audio_label_add'));
+        const box = await until(() => vis('input#isrc_no'), 10000, 'La fenêtre « Add Linked Audio ISRC » ne s’ouvre pas : clique le + des Linked Audio ISRCs, je continue.');
+        const inp = box === true ? vis('input#isrc_no') : box;
+        setText(inp, isrc); await sleep(300);
+        click(vis('a#modalSearchButton'));
+        await waitIdle();
+        let scope = inp; while (scope.parentElement && !scope.querySelector('a#modalTransferDataButton')) scope = scope.parentElement;
+        const hit = await waitFor(() => [...scope.querySelectorAll('td')].find(td => visible(td) && td.closest('tr') && !td.closest('tr').querySelector('input') && norm(txt(td.closest('tr'))).includes(isrc.toLowerCase())), 15000)
+          || [...scope.querySelectorAll('td')].find(td => visible(td) && td.closest('tr') && !td.closest('tr').querySelector('input') && norm(txt(td.closest('tr'))).includes(norm(audio.title)));
+        if (hit) { const tr = hit.closest('tr'); selectRow(tr); click(hit); await sleep(300); mouse(hit, 'dblclick', { detail: 2 }); await sleep(500); }
+        const add = vis('a#modalTransferDataButton');
+        if (add) click(add);
+        await waitIdle();
+        if (!await waitFor(() => !vis('input#isrc_no') && linked(), 10000)) await until(() => !vis('input#isrc_no') && linked(), 500, `Dans « Add Linked Audio ISRC », sélectionne la piste ${isrc} puis « Add Resource ». Je continue ensuite.`);
+        log('ISRC audio lié');
+      }
+      await done(4);
+    }
+
+    // 5. Contributors : Video Director / Video Producer
+    if (run.stage < 5) {
+      say(`5/${TOTAL} · Réalisateur et producteur vidéo…`);
+      await openTab('tabBar_resources_contributors_tab_div_a', () => vis('img#img_secondary_contributors_add'), 'Contributors');
+      const people = [[job.director, 'Video Director'], [job.videoProducer, 'Video Producer']].filter(([n]) => n);
+      for (const [name, role] of people) {
+        if (contribRows('editSecondaryContributor').some(tr => norm(txt(tr)).includes(norm(name)) && norm(txt(tr) + ' ' + [...tr.querySelectorAll('a')].map(a => a.title + ' ' + (a.getAttribute('label') || '')).join(' ')).includes(norm(role)))) { log(`${role} déjà présent : ${name}`); continue; }
+        await addContributor('secondary', name, 'Video Professionals', role, { optional: true, roleLabel: `Video Professionals / ${role}` });
+      }
+      if (!people.length) notes.push('pas de réalisateur ni de producteur vidéo dans la fiche : à ajouter à la main');
+      await saveAndCheck('img#img_saveActionIcon', 'la vidéo');
+      await done(5);
+    }
+    const code = ($id('isrc_resource_id') && $id('isrc_resource_id').value) || run.videoIsrc || '';
+    return (`Terminé ✓ ISRC vidéo « ${run.title} - ${vVersion} »${code ? ' : ' + code : ''}. Associée à la piste ${isrc} (Assoc + Linked ISRCs).${notes.length ? ' À vérifier : ' + notes.join(' ; ') + '.' : ''}`);
+  }
+
   // ---------- Tout enchaîner ----------
   const STAGES = ['copie de la release', 'release', 'copie de la piste', 'piste', 'copie pour la cover', 'cover', 'rattachement'];
   async function runAll(resume) {
@@ -1295,6 +1429,7 @@
     const job = data.job;
     data.set = { ...data.set, autoSave: true };
     const set = data.set;
+    if (job.mode === 'video') return runVideo(job, resume);
     const SNIP = job.mode === 'snippet';
     if (SNIP) job.srcIsrc = String(job.srcIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (SNIP && !job.srcIsrc) throw new Error('mode Snippets : indique l’ISRC de la piste complète dans le panneau');

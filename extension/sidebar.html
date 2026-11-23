@@ -22,18 +22,28 @@
   <section class="card">
     <h2>2. Vérifie la fiche</h2>
     <label>Type de sortie
-      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option></select>
+      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option><option value="video">ISRC vidéo (clip d’une piste déjà dans R2)</option></select>
     </label>
+    <label id="isrcBox" hidden><span id="isrcLabel">ISRC de la piste complète</span> <small id="isrcHint">(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)</small><input id="f_srcIsrc" placeholder="ex. GB2DY2614066"></label>
+    <div id="vidBox" hidden>
+      <label>Version title <small>(nom de la vidéo)</small><input id="f_videoVersion" placeholder="Official Music Video"></label>
+      <label>Category
+        <select id="f_videoCategory"><option>Official Music Video</option><option>Lyric Video</option><option>Lyric Video (Vertical)</option><option>Visualizer</option><option>Live Performance</option><option>Behind the Scenes</option><option>Documentary</option><option>EPK</option><option>Interview</option></select>
+      </label>
+      <label>Durée de la vidéo <small>(vide = celle de la piste audio)</small><input id="f_videoDuration" placeholder="0:02:47"></label>
+      <label>Réalisateur <small>(Video Director)</small><input id="f_director"></label>
+      <label>Producteur vidéo <small>(Video Producer — souvent le même)</small><input id="f_videoProducer"></label>
+      <p class="hint"><b>ISRC vidéo :</b> l’extension retrouve la piste audio par son ISRC, la copie en ressource <b>Video</b> (« Titre - Official Music Video »), coche 3rd Party + Auto-Generate, l’associe à la piste (onglets <b>Assoc</b> et <b>Linked ISRCs</b>), met la durée, Video Type « Video », la catégorie, puis le réalisateur et le producteur vidéo. Si R2 ne connaît pas le réalisateur, crée-le dans Identify (« Create Party ») : l’extension attend.</p>
+    </div>
     <div id="snipBox" hidden>
       <label>Durées des snippets <small>(un par ligne, dans l’ordre, ex. 0:59)</small><textarea id="f_snippets" rows="3" placeholder="0:59&#10;0:59&#10;0:20"></textarea></label>
-      <label>ISRC de la piste complète <small>(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)</small><input id="f_srcIsrc" placeholder="ex. GB2DY2614066"></label>
       <p class="hint"><b>Pour un snippet, il ne faut que 4 choses : l’artiste principal, la date de sortie, l’ISRC de la piste complète et les durées.</b> Le titre, les auteurs, le mix et le work viennent de la piste complète (elle est dupliquée) : ces champs sont masqués. L’extension copie la dernière sortie snippet de l’artiste, duplique la ressource de la piste complète (le work suit), crée « Titre - Snippet 1, 2, 3… » (ISRC, durée, onglet Clip) et les rattache.</p>
     </div>
     <div id="confirm" class="warn" hidden></div>
     <label data-nosnip>Titre<input id="f_title"></label>
     <label>Artiste principal<input id="f_artist"></label>
     <label data-nosnip>Featurings <small>(séparés par virgule — ajoutés en artiste « Featuring » et en voix)</small><input id="f_feats"></label>
-    <label>Date de sortie<input id="f_date" type="date"></label>
+    <label data-novid>Date de sortie<input id="f_date" type="date"></label>
     <label data-nosnip>Auteurs / compositeurs <small>(un par ligne — Composer Lyricist)</small><textarea id="f_writers" rows="2"></textarea></label>
       <label data-nosnip>Producteurs <small>(un par ligne — « Produced by », pas auteurs)</small><textarea id="f_producers" rows="2"></textarea></label>
     <label data-nosnip>Mix &amp; master <small>(un par ligne)</small><textarea id="f_mix" rows="2"></textarea></label>
@@ -42,14 +52,20 @@
       <label class="file">🎵 WAV<input id="wav" type="file" accept=".wav,audio/*"></label>
     </div>
     <span id="wavMsg" class="hint" data-nosnip></span>
-    <label>Genre <small>(facultatif — vide = celui de la sortie copiée)</small><input id="f_genre" placeholder="ex. Hip Hop"></label>
+    <label data-novid>Genre <small>(facultatif — vide = celui de la sortie copiée)</small><input id="f_genre" placeholder="ex. Hip Hop"></label>
     <label data-nosnip class="chk"><input id="f_isrcAuto" type="checkbox" checked> ISRC à générer (3rd Party + Auto-Generate)</label>
     <p class="hint" id="extra"></p>
   </section>
 
   <section class="card">
     <h2>3. Dans R2</h2>
-    <ol class="guide">
+    <ol class="guide" id="vidGuide" hidden>
+      <li>Ouvre R2 sur le <b>projet du label</b> où se trouve la piste audio, puis clique <b>▶ Lancer dans R2</b>.</li>
+      <li>L’extension fait les 5 étapes : copie en vidéo, ISRC auto + durée + type + catégorie, Assoc, Linked ISRCs, réalisateur / producteur vidéo. Le bandeau dans R2 montre l’avancement.</li>
+      <li>Seule pause : dans Identify, <b>c’est toi qui choisis</b> (ou crées avec « Create Party ») le réalisateur.</li>
+      <li>À la fin, l’ISRC vidéo s’affiche sur le bandeau : vérifie la ressource.</li>
+    </ol>
+    <ol class="guide" data-novid>
       <li>Ouvre R2 sur le <b>projet du label</b> de l’artiste, puis clique <b>▶ Lancer dans R2</b> ci-dessous (ou « Lancer tout » sur le bandeau).</li>
       <li>L’extension fait tout : copie de la dernière sortie de l’artiste, titre / UPC / date, piste, ISRC, durée, auteurs, mix/master, cover, puis <b>rattache la piste et la cover</b> et enregistre.</li>
       <li>Seule pause : dans Identify, <b>c’est toi qui choisis</b> la bonne personne (Select).</li>
@@ -60,7 +76,7 @@
       <button id="resumeR2" class="ghost">↻ Reprendre</button>
     </div>
     <span id="runMsg" class="hint"></span>
-    <div id="steps"></div>
+    <div id="steps" data-novid></div>
   </section>
 
   <details class="card">

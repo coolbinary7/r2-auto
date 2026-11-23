@@ -17,7 +17,7 @@ const DEFAULTS = {
   fixYears: true
 };
 
-const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'producers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc'];
+const FIELDS = ['title', 'artist', 'feats', 'date', 'writers', 'producers', 'mix', 'duration', 'genre', 'isrcAuto', 'mode', 'snippets', 'srcIsrc', 'videoVersion', 'videoCategory', 'videoDuration', 'director', 'videoProducer'];
 const LABELS = { isrc: 'ISRC de la piste complète', snippets: 'durées des snippets', title: 'titre', artist: 'artiste', feats: 'featurings', date: 'date', writers: 'auteurs', producers: 'producteurs', mix: 'mix & master', duration: 'durée' };
 
 function readJob() {
@@ -34,6 +34,8 @@ function readJob() {
     mode: $('#f_mode').value,
     snippets: $('#f_snippets').value.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean),
     srcIsrc: $('#f_srcIsrc').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
+    videoVersion: $('#f_videoVersion').value.trim(), videoCategory: $('#f_videoCategory').value, videoDuration: $('#f_videoDuration').value.trim(),
+    director: $('#f_director').value.trim(), videoProducer: $('#f_videoProducer').value.trim(),
     isrcAuto: $('#f_isrcAuto').checked,
     toConfirm: currentConfirm,
     extra: currentExtra
@@ -52,7 +54,9 @@ function showJob(j) {
   $('#f_mix').value = (j.mix || []).join('\n');
   $('#f_duration').value = j.duration || '';
   $('#f_genre').value = j.genre || '';
-  $('#f_mode').value = j.mode === 'snippet' ? 'snippet' : 'single';
+  $('#f_mode').value = ['snippet', 'video'].includes(j.mode) ? j.mode : 'single';
+  $('#f_videoVersion').value = j.videoVersion || ''; $('#f_videoCategory').value = j.videoCategory || 'Official Music Video';
+  $('#f_videoDuration').value = j.videoDuration || ''; $('#f_director').value = j.director || ''; $('#f_videoProducer').value = j.videoProducer || '';
   $('#f_snippets').value = (j.snippets || []).join('\n');
   $('#f_srcIsrc').value = j.srcIsrc || '';
   showMode();
@@ -74,9 +78,15 @@ function showJob(j) {
 }
 
 function showMode() {
-  const snip = $('#f_mode').value === 'snippet';
+  const m = $('#f_mode').value, snip = m === 'snippet', vid = m === 'video';
   $('#snipBox').hidden = !snip;
-  document.querySelectorAll('[data-nosnip]').forEach(el => { el.hidden = snip; });
+  $('#vidBox').hidden = !vid;
+  $('#isrcBox').hidden = !(snip || vid);
+  $('#isrcLabel').textContent = vid ? 'ISRC de la piste audio' : 'ISRC de la piste complète';
+  $('#isrcHint').textContent = vid ? '(obligatoire : la vidéo est copiée de cette piste et lui est associée)' : '(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)';
+  document.querySelectorAll('[data-nosnip]').forEach(el => { el.hidden = snip || vid; });
+  document.querySelectorAll('[data-novid]').forEach(el => { el.hidden = vid; });
+  $('#vidGuide').hidden = !vid;
 }
 $('#f_mode').addEventListener('change', () => { showMode(); save(); showJob(readJob()); });
 
@@ -196,7 +206,9 @@ browser.storage.onChanged.addListener((ch) => { if (ch[STATE]) showState(ch[STAT
 async function sendCmd(name) {
   await save();
   const j = readJob();
-  if (j.mode === 'snippet') {
+  if (j.mode === 'video') {
+    if (!/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(j.srcIsrc || '')) { $('#runMsg').textContent = 'Mode ISRC vidéo : indique l’ISRC de la piste audio (12 caractères).'; return; }
+  } else if (j.mode === 'snippet') {
     if (!/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(j.srcIsrc || '')) { $('#runMsg').textContent = 'Mode Snippets : indique l’ISRC de la piste complète (12 caractères, ex. GB2DY2614066). Le titre sera repris de R2.'; return; }
     if (!j.artist) { $('#runMsg').textContent = 'Remplis au moins l’artiste.'; return; }
   } else if (!j.title || !j.artist) { $('#runMsg').textContent = 'Remplis au moins le titre et l’artiste.'; return; }
