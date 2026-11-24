@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.7.3';
+  const VERSION = '0.8.0';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -743,7 +743,12 @@
     const addSel = kind === 'writer' ? 'img#img_writers_composers_add' : kind === 'primary' ? 'img#img_primary_contributors_add' : 'img#img_secondary_contributors_add';
     const modalSave = () => vis('a#saveButton[onclick*="saveContributor"]');
     const nameInput = () => { const e = $id('contributor_name_0'); return e && visible(e) ? e : null; };
-    log(`contributeur ${kind} : ${name}${opt.editRow ? ' (à la place de « ' + opt.oldName + ' »)' : ''}`);
+    // carnet : un alias (« Natou ») devient le nom de la fiche, et on connaît son Party ID
+    const carnet = await R2Carnet.load();
+    const who = R2Carnet.findIn(carnet, name);
+    if (who && R2Carnet.norm(who.name) !== R2Carnet.norm(name)) { log(`carnet : « ${name} » = ${who.name}`); name = who.name; }
+    const t0 = Date.now();
+    log(`contributeur ${kind} : ${name}${who && who.partyId ? ' (Party ID ' + who.partyId + ')' : ''}${opt.editRow ? ' (à la place de « ' + opt.oldName + ' »)' : ''}`);
     if (opt.editRow) {
       // on modifie la ligne héritée : son rôle et son type restent, seul le nom change
       const ed = opt.editRow.querySelector('a[href*="editSecondaryContributor"], a[title="Edit Contributor"]');
@@ -770,6 +775,11 @@
       await sleep(300);
       if (nameInput() && norm(nameInput().value) !== norm(name)) { nameInput().value = name; fire(nameInput(), 'input', 'keyup'); }
     }
+    // main levée : on dit à la fenêtre Identify quelle fiche choisir
+    const wantId = 'w' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const handsFree = !!(who && who.partyId && carnet.defaults.mainLevee);
+    if (handsFree) await browser.storage.local.set({ 'r2auto-idwant': { id: wantId, name, partyId: who.partyId, ts: Date.now() } });
+    else await browser.storage.local.remove('r2auto-idwant');
     // Tab : R2 retrouve la personne tout seul, ou ouvre Identify
     const field = nameInput() || inp;
     try { field.focus(); } catch (e) { /* rien */ }
@@ -783,12 +793,39 @@
       if (loupe) { click(loupe); idf = await waitFor(identifyFrame, 12000); }
     }
     const choose = async () => {
-      const r = await pause(`Choisis « ${name} » dans Identify (bouton Select). Je continue dès que c’est fait.`, () => !identifyFrame());
+      if (handsFree) {
+        say(`Identify : sélection de ${name} (Party ID ${who.partyId})…`);
+        await browser.storage.local.set({ 'r2auto-idwant': { id: wantId, name, partyId: who.partyId, ts: Date.now() } });
+        const t1 = Date.now();
+        while (Date.now() - t1 < 30000 && identifyFrame()) {
+          const res = (await browser.storage.local.get('r2auto-idres'))['r2auto-idres'];
+          if (res && res.id === wantId && !res.ok) { log('Identify : ' + res.msg); break; }
+          await sleep(500);
+        }
+        if (!identifyFrame()) {
+          log(`Identify : ${name} sélectionné automatiquement`); await sleep(900);
+          // R2 affiche le nom officiel de la fiche : s'il diffère, le carnet l'adopte (l'ancien devient un alias)
+          const got = nameInput() && nameInput().value.trim();
+          if (got && R2Carnet.norm(got) !== R2Carnet.norm(name)) {
+            const c2 = await R2Carnet.load(); const f = R2Carnet.findIn(c2, name);
+            if (f) { if (!f.aliases.some(a => R2Carnet.norm(a) === R2Carnet.norm(f.name))) f.aliases.push(f.name); f.name = got; await R2Carnet.save(c2); log(`carnet : « ${name} » s’appelle « ${got} » dans Identify (nom mis à jour)`); }
+          }
+          return;
+        }
+        notes.push(`${name} : Party ID ${who.partyId} pas trouvé dans Identify, choisi à la main`);
+      }
+      const r = await pause(`Choisis « ${name} » dans Identify (bouton Select). Je continue dès que c’est fait.${who && who.partyId ? ' (Party ID attendu : ' + who.partyId + ')' : ''}`, () => !identifyFrame());
       if (r === 'stop') throw new Stop();
       say('Je continue…');
       await sleep(900);
     };
     if (idf) await choose(); else log('Identify ne s’est pas ouvert pour ' + name);
+    await browser.storage.local.remove('r2auto-idwant');
+    // apprentissage : la fiche que tu as choisie à la main entre dans le carnet
+    if (idf && carnet.defaults.learn !== false && !(who && who.partyId)) {
+      const pk = (await browser.storage.local.get('r2auto-idpicked'))['r2auto-idpicked'];
+      if (pk && pk.partyId && pk.ts >= t0) { await R2Carnet.upsert({ name, partyId: pk.partyId, learned: true }); log(`carnet : ${name} → Party ID ${pk.partyId} (appris)`); }
+    }
     // crédit (« Vocals: Josey » → « Vocals: Ntaba 2 London », « Produced by … »)
     const cr = $id('contributor_credit_0');
     if (cr && visible(cr)) {
@@ -1138,7 +1175,8 @@
   async function ensureProject(job) {
     if (releaseList().length || treeRows().some(td => /^RELEASES\s*\(/i.test(txt(td)))) return;
     const d = await browser.storage.local.get(PROJ);
-    const code = (d[PROJ] || {})[norm(job.artist)];
+    const fiche = await R2Carnet.find(job.artist);
+    const code = (fiche && fiche.project) || (d[PROJ] || {})[norm(job.artist)];
     const link = code && projectLinks().find(a => txt(a) === code);
     if (!link) return;
     say(`Ouverture du projet ${code}…`);
@@ -1154,6 +1192,7 @@
     const map = d[PROJ] || {};
     map[norm(job.artist)] = code;
     await browser.storage.local.set({ [PROJ]: map });
+    try { await R2Carnet.upsert({ name: job.artist, project: code, learned: true }); } catch (e) { /* rien */ }
   }
 
 
@@ -1442,6 +1481,16 @@
     const job = data.job;
     data.set = { ...data.set, autoSave: true };
     const set = data.set;
+    // carnet : les alias deviennent les noms des fiches (« Natou » → le nom exact), pour toute la saisie
+    try {
+      const c = await R2Carnet.load();
+      const canon = (n) => { const f = R2Carnet.findIn(c, n); return f ? f.name : n; };
+      for (const k of ['feats', 'writers', 'producers', 'mix']) if (Array.isArray(job[k])) job[k] = [...new Set(job[k].map(canon))];
+      for (const k of ['director', 'videoProducer']) if (job[k]) job[k] = canon(job[k]);
+      const fa = R2Carnet.findIn(c, job.artist);
+      if (fa && !job.genre && fa.genre) job.genre = fa.genre;
+      if (!job.genre && c.defaults.genre) job.genre = c.defaults.genre;
+    } catch (e) { log('carnet illisible : ' + e.message); }
     if (job.mode === 'video') return runVideo(job, resume);
     const SNIP = job.mode === 'snippet';
     if (SNIP) job.srcIsrc = String(job.srcIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();

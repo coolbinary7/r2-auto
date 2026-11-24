@@ -80,6 +80,23 @@
     <div id="steps" data-novid></div>
   </section>
 
+  <details class="card" id="carnetCard">
+    <summary>📒 Mon carnet (artistes, Party ID, réglages)</summary>
+    <p class="hint">Les artistes et contributeurs avec qui tu travailles le plus. Avec leur <b>Party ID</b> (Identify), l’extension choisit toute seule la bonne fiche dans Identify : plus de pause. Un alias (ex. « Natou ») renvoie à la fiche. Le <b>projet R2</b> sert à ouvrir le bon projet automatiquement.</p>
+    <label class="chk"><input id="cMain" type="checkbox"> <b>Main levée</b> : sélectionner seul dans Identify les personnes du carnet</label>
+    <label class="chk"><input id="cLearn" type="checkbox"> Apprendre : quand je choisis quelqu’un à la main dans Identify, l’ajouter au carnet</label>
+    <label>Genre par défaut <small>(si le mail n’en donne pas)</small><input id="cGenre" placeholder="ex. Hip Hop/Rap"></label>
+    <input id="cSearch" placeholder="🔎 Chercher dans le carnet" style="margin-top:10px">
+    <div id="cList" class="clist"></div>
+    <button id="cAdd" class="wide">＋ Ajouter une personne</button>
+    <div class="row2">
+      <button id="cExport">⬇️ Exporter</button>
+      <label class="file" style="margin-top:8px">⬆️ Importer<input id="cImport" type="file" accept=".json,application/json"></label>
+    </div>
+    <span id="cMsg" class="msg"></span>
+    <p class="hint">Exporter crée un fichier .json avec tout le carnet et les réglages : sur un autre PC, installe Auto R2 puis « Importer » ce fichier. L’import complète le carnet existant sans rien effacer.</p>
+  </details>
+
   <details class="card">
     <summary>Réglages</summary>
     <label>Config Group<input id="s_configGroup"></label>
@@ -104,7 +121,9 @@
   </details>
 
   <button id="newJob" class="ghost wide">Nouvelle sortie (vider la fiche)</button>
+  <script src="carnet.js"></script>
   <script src="parse.js"></script>
   <script src="sidebar.js"></script>
+  <script src="carnet-ui.js"></script>
 </body>
 </html>

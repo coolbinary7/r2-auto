@@ -31,3 +31,12 @@ button.wide{width:100%}
 #steps .ok{color:var(--green)}
 #steps .err{color:var(--red)}
 [hidden]{display:none!important}
+
+.clist{margin-top:6px}
+.cp{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-top:6px}
+.cp .top{display:flex;gap:6px;align-items:center}
+.cp .top input{flex:1}
+.cp .del{margin:0;padding:4px 8px}
+.cp .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.cp .tag{font-size:10px;color:var(--orange);font-weight:700}
+.cp.missing .pid{border-color:#f59e0b;background:rgba(245,158,11,.08)}

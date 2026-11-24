@@ -97,6 +97,20 @@ async function save() {
   await browser.storage.local.set({ [JOB]: readJob() });
 }
 
+function carnetGenre(artist) {
+  const c = window.carnetNow && window.carnetNow();
+  if (!c) return '';
+  const f = R2Carnet.findIn(c, artist);
+  return (f && f.genre) || c.defaults.genre || '';
+}
+// les noms de la fiche qui passeront par Identify sans Party ID dans le carnet
+function carnetGaps(job) {
+  const c = window.carnetNow && window.carnetNow();
+  if (!c || !c.defaults.mainLevee) return '';
+  const names = job.mode === 'video' ? [job.director, job.videoProducer] : job.mode === 'snippet' ? [] : [...(job.feats || []), ...(job.writers || []), ...(job.producers || []), ...(job.mix || [])];
+  const miss = [...new Set(names.filter(Boolean))].filter(n => { const f = R2Carnet.findIn(c, n); return !(f && f.partyId); });
+  return miss.length ? ` — Pas de Party ID dans le carnet pour : ${miss.join(', ')} (Identify te demandera de choisir ; l’extension les retiendra).` : (names.filter(Boolean).length ? ' — Tout le monde est dans le carnet : main levée.' : '');
+}
 $('#parse').addEventListener('click', async () => {
   const p = R2Parse.parseMail($('#mail').value);
   const keep = readJob();
@@ -104,7 +118,7 @@ $('#parse').addEventListener('click', async () => {
     title: p.title, artist: p.artist, feats: p.feats, date: p.date,
     writers: p.writers, producers: p.producers || [], mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
-    genre: p.genre || '',
+    genre: p.genre || carnetGenre(p.artist),
     mode: (p.mode === 'video' || p.audioIsrc) ? 'video' : p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : (keep.mode === 'video' ? 'single' : keep.mode)), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
     srcIsrc: p.audioIsrc ? p.audioIsrc : (p.mode === 'snippet' && p.isrc) ? p.isrc : keep.srcIsrc,
     director: p.videoDirector || '', videoProducer: p.videoProducer || '', videoIsrc: p.videoIsrc || '',
@@ -125,7 +139,7 @@ $('#parse').addEventListener('click', async () => {
   $('#parseMsg').style.color = missing.length ? 'var(--red)' : '';
   $('#parseMsg').textContent = (missing.length
     ? 'Pas trouvé : ' + missing.map(k => LABELS[k] || k).join(', ') + '. Complète à la main (ou demande un mail au format modèle).'
-    : (job.mode === 'video' ? 'Fiche vidéo remplie (ISRC audio, crédit vidéo' + (job.videoIsrc ? ', ISRC vidéo fourni' : ', ISRC vidéo à générer') + ', catégorie ' + job.videoCategory + ').' : job.mode === 'snippet' ? 'Fiche snippet remplie.' : 'Fiche remplie. Ajoute le WAV pour la durée.')) + (notes.length ? ' — ' + notes.join(' ; ') : '');
+    : (job.mode === 'video' ? 'Fiche vidéo remplie (ISRC audio, crédit vidéo' + (job.videoIsrc ? ', ISRC vidéo fourni' : ', ISRC vidéo à générer') + ', catégorie ' + job.videoCategory + ').' : job.mode === 'snippet' ? 'Fiche snippet remplie.' : 'Fiche remplie. Ajoute le WAV pour la durée.')) + (notes.length ? ' — ' + notes.join(' ; ') : '') + carnetGaps(job);
 });
 
 document.querySelectorAll('section input, section textarea').forEach(el => {
