@@ -48,13 +48,6 @@
       <label>Durées des snippets <small>(un par ligne, dans l’ordre, ex. 0:59)</small><textarea id="f_snippets" rows="3" placeholder="0:59&#10;0:59&#10;0:20"></textarea></label>
       <p class="hint"><b>Pour un snippet, il ne faut que 4 choses : l’artiste principal, la date de sortie, l’ISRC de la piste complète et les durées.</b> Le titre, les auteurs, le mix et le work viennent de la piste complète (elle est dupliquée) : ces champs sont masqués. L’extension copie la dernière sortie snippet de l’artiste, duplique la ressource de la piste complète (le work suit), crée « Titre - Snippet 1, 2, 3… » (ISRC, durée, onglet Clip) et les rattache.</p>
     </div>
-    <div id="albBox" hidden>
-      <p class="hint"><b>Album :</b> la release est copiée en <b>eAlbum Audio</b>, puis une piste est créée par titre, dans l’ordre ci-dessous (ISRC fourni ou généré, durée, crédits propres à chaque piste), la cover est faite, et tout est rattaché. Si ça s’arrête au milieu, « Reprendre » continue sans recréer ce qui existe.</p>
-      <label>Version de l’album <small>(facultatif)</small><input id="f_albumVersion" placeholder="ex. Deluxe"></label>
-      <div id="albRecap" class="recap"></div>
-      <div id="tracks"></div>
-      <button id="addTrack" class="ghost" style="width:100%;margin-top:6px">＋ Ajouter une piste</button>
-    </div>
     <div id="confirm" class="warn" hidden></div>
     <label data-nosnip><span id="titleLab">Titre</span><input id="f_title"></label>
     <label>Artiste principal<input id="f_artist"></label>
@@ -69,6 +62,13 @@
     </div>
     <span id="wavMsg" class="hint" data-nosnip data-noalb></span>
     <label data-novid>Genre <small>(facultatif — vide = celui de la sortie copiée)</small><input id="f_genre" placeholder="ex. Hip Hop"></label>
+    <div id="albBox" hidden>
+      <p class="hint"><b>Album :</b> la release est copiée en <b>eAlbum Audio</b>, puis une piste est créée par titre, dans l’ordre ci-dessous (ISRC fourni ou généré, durée, crédits propres à chaque piste), la cover est faite, et tout est rattaché. Si ça s’arrête au milieu, « Reprendre » continue sans recréer ce qui existe.</p>
+      <label>Version de l’album <small>(facultatif)</small><input id="f_albumVersion" placeholder="ex. Deluxe"></label>
+      <div id="albRecap" class="recap"></div>
+      <div id="tracks"></div>
+      <button id="addTrack" class="ghost" style="width:100%;margin-top:6px">＋ Ajouter une piste</button>
+    </div>
     <label data-nosnip data-noalb class="chk"><input id="f_isrcAuto" type="checkbox" checked> ISRC à générer (3rd Party + Auto-Generate)</label>
     <p class="hint" id="extra"></p>
   </section>
