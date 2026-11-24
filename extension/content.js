@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.8.0';
+  const VERSION = '0.9.0';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1061,9 +1061,20 @@
     async resourceAudio({ job, set }) {
       const vt = $id('version_title');
       if (vt && visible(vt) && norm(vt.value) !== norm(job.version || '')) { log(`version de la piste « ${vt.value} » → « ${job.version || ''} »`); setText(vt, job.version || ''); await sleep(300); }
-      // ISRC : 3rd Party + Auto-Generate
+      // ISRC : 3rd Party + Auto-Generate, ou 3rd Party + ISRC fourni (album : enregistrement du 24/11)
       const third = $id('isrc_id_type_third');
-      if (job.isrcAuto !== false && third) {
+      const given = String(job.isrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (job.isrcAuto === false && given && third) {
+        const cur = (($id('isrc_resource_id') || {}).value || '').replace(/\W/g, '').toUpperCase();
+        if (cur !== given) {
+          check(third, true); await sleep(600);
+          const auto = $id('auto_gen'); if (auto && auto.checked) { check(auto, false); await sleep(400); }
+          const f = await waitFor(() => { const e = $id('isrc_resource_id'); return e && visible(e) && !e.disabled ? e : null; }, 4000);
+          if (f) { setText(f, given); await sleep(300); log('ISRC fourni : ' + given); }
+          else notes.push(`ISRC ${given} à saisir à la main (champ ISRC/ID bloqué)`);
+          const y = $id('year'); if (y && visible(y) && !y.disabled && !y.value.trim()) { setText(y, (job.date || '').slice(0, 4) || String(new Date().getFullYear())); await sleep(200); }
+        }
+      } else if (job.isrcAuto !== false && third) {
         check(third, true);
         await sleep(600);
         const auto = await waitFor(() => { const a = $id('auto_gen'); return a && visible(a) && !a.disabled ? a : null; }, 4000);
@@ -1474,6 +1485,167 @@
     return (`Terminé ✓ ${vIsrc ? 'ISRC fourni' : 'ISRC généré'} · vidéo « ${run.title} - ${vVersion} »${code ? ' : ' + code : ''}. Associée à la piste ${isrc} (Assoc + Linked ISRCs).${notes.length ? ' À vérifier : ' + notes.join(' ; ') + '.' : ''}`);
   }
 
+  // ---------- Album (enregistrement eAlbum Audio du 24/11/2026) ----------
+  // 1 copie de la release (eAlbum Audio) · 2 release (titre, UPC, date, ménage) · une étape par piste (copie + ISRC, durée, crédits)
+  // · cover (copie + réglages) · rattachement des pistes dans l'ordre + cover. Reprise possible à chaque étape, sans doublon.
+  const trackJob = (job, t) => ({
+    ...job, mode: 'single', tracks: undefined,
+    title: t.title, version: t.version || '', artist: t.artist || job.artist,
+    feats: t.feats || [], writers: t.writers || [], producers: t.producers || [], mix: t.mix || [],
+    genre: t.genre || job.genre, duration: t.duration || '',
+    isrc: t.isrc || '', isrcAuto: !t.isrc
+  });
+  const albumSig = (job) => (job.tracks || []).map(t => norm(t.title) + '|' + norm(t.version || '')).join('#');
+  async function runAlbum(job, data, resume) {
+    const set = { ...data.set, configuration: data.set.albumConfiguration || 'eAlbum Audio' };
+    const tracks = job.tracks || [];
+    if (!tracks.length) throw new Error('album sans pistes : ajoute les pistes dans le panneau');
+    const N = tracks.length, TOTAL = N + 5;
+    const prev = data.state.run;
+    const run = (resume && prev && prev.album && norm(prev.title) === norm(job.title) && prev.sig === albumSig(job)) ? prev
+      : { album: true, title: job.title, sig: albumSig(job), stage: 0, old: [], oldCodes: [], tracks: tracks.map(() => ({})) };
+    if (!resume) await browser.storage.local.set({ [STATE]: { steps: {}, run } });
+    const done = async (n) => { run.stage = n; run.total = TOTAL; await saveRun(run); log(`étape ${n}/${TOTAL} terminée`); };
+    const D = { ...data, set, job };
+    log(`=== ${resume ? 'reprise à l’étape ' + (run.stage + 1) : 'départ'} : album ${job.artist} – ${job.title} · ${N} piste(s) (Auto R2 ${VERSION})`);
+
+    // 1. Copie de la release modèle, en eAlbum Audio
+    if (run.stage < 1) {
+      if (screen() !== 'copyRelease') {
+        say(`1/${TOTAL} · Recherche de la dernière sortie de ${job.artist}…`);
+        await ensureProject(job);
+        let model = await findLatestArtistRelease(job.artist, job.title, job.feats);
+        if (!model) {
+          const r = await pause(`Pas de sortie de « ${job.artist} » dans ce que je vois. Ouvre le projet du label (ou clic droit → Copy sur la release à copier) : je continue tout seul.`,
+            () => screen() === 'copyRelease' || !!(model = scanArtistReleases(job.artist, job.title, job.feats)[0]));
+          if (r === 'stop') throw new Stop();
+        }
+        const dup = newReleaseNode(job, model ? model.id : 0);
+        if (dup && screen() !== 'copyRelease') { const r = await pause(`Une release « ${dup.title} » existe déjà (essai précédent ?). « Continuer » en crée une nouvelle ; « Arrêter » pour la garder.`); if (r === 'stop') throw new Stop(); }
+        if (model && screen() !== 'copyRelease') {
+          run.modelTitle = model.title; run.modelId = model.id;
+          if (!model.exact) run.modelArtists = model.artists;
+          say(`1/${TOTAL} · Modèle : « ${model.title} ». Copie…`);
+          for (let i = 0; i < 2 && screen() !== 'copyRelease'; i++) { await contextCopy(model.el); await waitScreen('copyRelease', 8000); }
+        }
+        await until(() => screen() === 'copyRelease', 500, 'Fais clic droit → Copy sur la release à copier, je prends la suite.');
+      }
+      say(`1/${TOTAL} · Copie de la release (eAlbum Audio)…`);
+      await ACTIONS.copyRelease(D);
+      await done(1);
+    }
+    // 2. Release : titre, UPC, date, retrait des anciennes pistes et de l'ancienne cover
+    if (run.stage < 2) {
+      say(`2/${TOTAL} · Ouverture de la release copiée…`);
+      await until(() => screen() === 'release' && (/\[copy\]/i.test(titleValue()) || titleIs(job.title)), 60000,
+        'Ouvre la release copiée (« … [Copy] », double-clic dans l’arbre). Je continue dès qu’elle s’affiche.');
+      await waitIdle();
+      say(`2/${TOTAL} · Release : titre, UPC, date, retrait des anciennes pistes et de l’ancienne cover…`);
+      await ACTIONS.release(D, null, run);
+      await done(2);
+    }
+    // 3 → 2+N. Une piste par étape, dans l'ordre
+    for (let k = 0; k < N; k++) {
+      const st = 3 + k;
+      if (run.stage >= st) continue;
+      const t = tracks[k], tj = trackJob(job, t);
+      const DJ = { ...D, job: tj };
+      const lab = `${st}/${TOTAL} · Piste ${k + 1}/${N} « ${t.title} »`;
+      const mine = () => resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title)).filter(r => !(run.preIds || []).includes(r.id)).sort((a, b) => b.id - a.id)[0];
+      if (!run.preIds) { run.preIds = resourceList().map(r => r.id); await saveRun(run); }
+      const onIt = () => screen() === 'resourceAudio' && titleIs(t.title);
+      if (!run.tracks[k].created && !mine()) {
+        say(`${lab} : copie…`);
+        if (screen() !== 'copyResource') {
+          // source : la piste précédente de l'album (déjà nettoyée), sinon une piste de la sortie copiée
+          let node = null;
+          if (k > 0) { const pt = tracks[k - 1]; node = resourceList().filter(r => !r.cover && norm(r.title) === norm(pt.title)).sort((a, b) => b.id - a.id)[0] || null; }
+          if (!node) for (const tt of [...new Set([...(run.old || []), run.modelTitle].filter(Boolean))]) { node = await findResourceNode(tt, { codes: run.oldCodes || [], timeout: 20000 }); if (node) break; }
+          if (node) {
+            log(`piste ${k + 1} : copie de ${node.text}`);
+            if (screen() === 'resourceAudio' && node.title && titleIs(node.title)) { await toolbarCopy(); await waitScreen('copyResource', 8000); }
+            for (let i = 0; i < 2 && screen() !== 'copyResource'; i++) { await contextCopy(node.el); await waitScreen('copyResource', 8000); }
+          }
+          await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur une piste audio de l’artiste dans RESOURCES : je crée « ${t.title} » à partir d’elle.`);
+        }
+        await ACTIONS.copyResource(DJ, 'audio');
+        run.tracks[k].created = true; await saveRun(run);
+      } else log(`piste ${k + 1} « ${t.title} » déjà créée : je la complète`);
+      if (!onIt()) {
+        const node = mine();
+        if (node) { await openNode(node.el); await waitIdle(); }
+        await until(onIt, 60000, `Ouvre la piste « ${t.title} » (double-clic dans RESOURCES). Je continue dès qu’elle s’affiche.`);
+      }
+      await waitIdle();
+      say(`${lab} : ISRC, durée, crédits…`);
+      await ACTIONS.resourceAudio(DJ);
+      run.tracks[k].isrc = ($id('isrc_resource_id') && $id('isrc_resource_id').value) || t.isrc || '';
+      run.tracks[k].ok = true;
+      await done(st);
+    }
+    // Cover de l'album : copie de la dernière piste en image, titre = titre de l'album
+    const albumJob = { ...job, mode: 'single', version: job.version || '' };
+    if (run.stage < N + 3) {
+      say(`${N + 3}/${TOTAL} · Copie pour la cover…`);
+      if (screen() !== 'copyResource') {
+        const last = tracks[N - 1];
+        if (screen() === 'resourceAudio' && titleIs(last.title) && vis('img#img_copy_resource_icon')) { click(vis('img#img_copy_resource_icon')); await waitScreen('copyResource', 8000); }
+        if (screen() !== 'copyResource') { const node = await findResourceNode(last.title, { timeout: 30000 }); for (let i = 0; node && i < 2 && screen() !== 'copyResource'; i++) { await contextCopy(node.el); await waitScreen('copyResource', 8000); } }
+        await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur la piste « ${last.title} », je reprends pour la cover.`);
+      }
+      await ACTIONS.copyResource({ ...D, job: albumJob }, 'image');
+      await done(N + 3);
+    }
+    if (run.stage < N + 4) {
+      await until(() => screen() === 'resourceImage', 60000, `Ouvre la ressource cover « ${job.title} [Cover Art] » (double-clic dans RESOURCES). Je continue dès qu’elle s’affiche.`);
+      await waitIdle();
+      say(`${N + 4}/${TOTAL} · Cover : taille, résolution, format…`);
+      await ACTIONS.resourceImage({ ...D, job: albumJob }, 'cleanup');
+      await done(N + 4);
+    }
+    // Rattachement : toutes les pistes dans l'ordre, puis la cover
+    if (run.stage < N + 5) {
+      say(`${TOTAL}/${TOTAL} · Retour sur la release…`);
+      if (!(screen() === 'release' && titleIs(job.title))) {
+        const rel = newReleaseNode(job, run.modelId || 0);
+        if (rel) await openNode(rel.el);
+        await until(() => screen() === 'release' && titleIs(job.title), 45000, `Ouvre la release « ${job.title} » (double-clic dans l’arbre). Je continue dès qu’elle s’affiche.`);
+      }
+      await waitIdle(); await sleep(800);
+      await showTracks();
+      for (let k = 0; k < N; k++) {
+        const t = tracks[k];
+        const has = () => readTracks(t.title).some(x => norm(x.title) === norm(t.title));
+        if (has()) { log(`piste ${k + 1} déjà rattachée`); continue; }
+        say(`${TOTAL}/${TOTAL} · Rattachement piste ${k + 1}/${N} « ${t.title} »…`);
+        const node = resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title)).sort((a, b) => b.id - a.id)[0];
+        const manual = `Glisse la piste « ${node ? node.text : t.title} » depuis RESOURCES jusque dans la grille des pistes (en position ${k + 1}). Je continue dès qu’elle y est.`;
+        if (node) await dropInto(node, () => dropTarget(tracksBox()), has, 'piste ' + (k + 1), manual); else await until(has, 500, manual);
+        await sleep(500);
+      }
+      // ordre final
+      const order = readTracks().map(x => norm(x.title));
+      const want = tracks.map(t => norm(t.title));
+      const pos = want.map(w => order.indexOf(w));
+      if (pos.some((p, i) => i && p < pos[i - 1])) notes.push('ordre des pistes différent de la fiche dans l’onglet Tracks : à remettre dans l’ordre');
+      const coverCount = () => Math.max(coverRows().length, unseqCount() || 0);
+      if (!coverCount()) {
+        say(`${TOTAL}/${TOTAL} · Rattachement de la cover…`);
+        await showUnseq();
+        const node = await findResourceNode(job.title, { cover: true });
+        const manual = `Onglet Unseq : glisse la cover « ${node ? node.text : job.title + ' [Cover Art]'} » dans la grille. Je continue dès qu’elle y est.`;
+        if (node) await dropInto(node, () => dropTarget(unseqBox()), unseqHasRow, 'cover', manual); else await until(unseqHasRow, 500, manual);
+      }
+      await sleep(500);
+      await saveAndCheck('img#img_saveReleaseButton', 'la release');
+      await done(N + 5);
+    }
+    await rememberProject(job);
+    const res = tracks.map((t, k) => `${k + 1}. ${t.title}${run.tracks[k] && run.tracks[k].isrc ? ' (' + run.tracks[k].isrc + ')' : ''}`).join(' · ');
+    const extra = notes.length ? ' À vérifier : ' + notes.map(n => '« ' + n.slice(0, 120) + ' »').join(' ; ') + '.' : '';
+    return `Terminé ✓ album « ${job.title} » : ${N} piste(s) créées et rattachées dans l’ordre — ${res}. Cover rattachée.${extra} Vérifie, puis fais toi-même le Submit Release.`;
+  }
+
   // ---------- Tout enchaîner ----------
   const STAGES = ['copie de la release', 'release', 'copie de la piste', 'piste', 'copie pour la cover', 'cover', 'rattachement'];
   async function runAll(resume) {
@@ -1492,6 +1664,7 @@
       if (!job.genre && c.defaults.genre) job.genre = c.defaults.genre;
     } catch (e) { log('carnet illisible : ' + e.message); }
     if (job.mode === 'video') return runVideo(job, resume);
+    if (job.mode === 'album') return runAlbum(job, data, resume);
     const SNIP = job.mode === 'snippet';
     if (SNIP) job.srcIsrc = String(job.srcIsrc || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (SNIP && !job.srcIsrc) throw new Error('mode Snippets : indique l’ISRC de la piste complète dans le panneau');

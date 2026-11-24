@@ -13,6 +13,14 @@
 
   <section class="card">
     <h2>1. Colle le mail</h2>
+    <div class="tplRow">
+      <label>Type de sortie <small>(pour le modèle de mail)</small>
+        <select id="tplType"><option value="single">Single</option><option value="snippet">Snippet</option><option value="video">Vidéo (ISRC vidéo)</option><option value="album">Album / EP</option></select>
+      </label>
+      <label id="tplNLab" hidden>Nombre de titres<input id="tplN" type="number" min="1" step="1" value="3"></label>
+    </div>
+    <span id="tplMsg" class="msg"></span>
+    <details class="tplPrev"><summary>Voir le modèle</summary><pre id="tplPre"></pre></details>
     <textarea id="mail" rows="6" placeholder="Colle le mail (format modèle conseillé) ou une ligne du tableau modèle (en-têtes + ligne)&#10;Titre : GEN Z&#10;Artiste principal : The Rap Angel&#10;Date de sortie : 11/11/2026&#10;Auteurs : Hugo de Souza&#10;Mix / Master : Le_R"></textarea>
     <button id="parse" class="primary">Analyser le mail</button>
     <button id="copyModel" class="ghost" style="width:100%;margin-top:6px">📋 Copier le modèle de mail</button>
@@ -22,7 +30,7 @@
   <section class="card">
     <h2>2. Vérifie la fiche</h2>
     <label>Type de sortie
-      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option><option value="video">ISRC vidéo (clip d’une piste déjà dans R2)</option></select>
+      <select id="f_mode"><option value="single">Single (piste + cover)</option><option value="snippet">Snippets (extraits d’une piste déjà dans R2)</option><option value="video">ISRC vidéo (clip d’une piste déjà dans R2)</option><option value="album">Album / EP (plusieurs pistes)</option></select>
     </label>
     <label id="isrcBox" hidden><span id="isrcLabel">ISRC de la piste complète</span> <small id="isrcHint">(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)</small><input id="f_srcIsrc" placeholder="ex. GB2DY2614066"></label>
     <div id="vidBox" hidden>
@@ -40,21 +48,28 @@
       <label>Durées des snippets <small>(un par ligne, dans l’ordre, ex. 0:59)</small><textarea id="f_snippets" rows="3" placeholder="0:59&#10;0:59&#10;0:20"></textarea></label>
       <p class="hint"><b>Pour un snippet, il ne faut que 4 choses : l’artiste principal, la date de sortie, l’ISRC de la piste complète et les durées.</b> Le titre, les auteurs, le mix et le work viennent de la piste complète (elle est dupliquée) : ces champs sont masqués. L’extension copie la dernière sortie snippet de l’artiste, duplique la ressource de la piste complète (le work suit), crée « Titre - Snippet 1, 2, 3… » (ISRC, durée, onglet Clip) et les rattache.</p>
     </div>
+    <div id="albBox" hidden>
+      <p class="hint"><b>Album :</b> la release est copiée en <b>eAlbum Audio</b>, puis une piste est créée par titre, dans l’ordre ci-dessous (ISRC fourni ou généré, durée, crédits propres à chaque piste), la cover est faite, et tout est rattaché. Si ça s’arrête au milieu, « Reprendre » continue sans recréer ce qui existe.</p>
+      <label>Version de l’album <small>(facultatif)</small><input id="f_albumVersion" placeholder="ex. Deluxe"></label>
+      <div id="albRecap" class="recap"></div>
+      <div id="tracks"></div>
+      <button id="addTrack" class="ghost" style="width:100%;margin-top:6px">＋ Ajouter une piste</button>
+    </div>
     <div id="confirm" class="warn" hidden></div>
-    <label data-nosnip>Titre<input id="f_title"></label>
+    <label data-nosnip><span id="titleLab">Titre</span><input id="f_title"></label>
     <label>Artiste principal<input id="f_artist"></label>
-    <label data-nosnip>Featurings <small>(séparés par virgule — ajoutés en artiste « Featuring » et en voix)</small><input id="f_feats"></label>
+    <label data-nosnip data-noalb>Featurings <small>(séparés par virgule — ajoutés en artiste « Featuring » et en voix)</small><input id="f_feats"></label>
     <label data-novid>Date de sortie<input id="f_date" type="date"></label>
-    <label data-nosnip>Auteurs / compositeurs <small>(un par ligne — Composer Lyricist)</small><textarea id="f_writers" rows="2"></textarea></label>
-      <label data-nosnip>Producteurs <small>(un par ligne — « Produced by », pas auteurs)</small><textarea id="f_producers" rows="2"></textarea></label>
-    <label data-nosnip>Mix &amp; master <small>(un par ligne)</small><textarea id="f_mix" rows="2"></textarea></label>
-    <div class="row2" data-nosnip>
+    <label data-nosnip data-noalb>Auteurs / compositeurs <small>(un par ligne — Composer Lyricist)</small><textarea id="f_writers" rows="2"></textarea></label>
+      <label data-nosnip data-noalb>Producteurs <small>(un par ligne — « Produced by », pas auteurs)</small><textarea id="f_producers" rows="2"></textarea></label>
+    <label data-nosnip data-noalb>Mix &amp; master <small>(un par ligne)</small><textarea id="f_mix" rows="2"></textarea></label>
+    <div class="row2" data-nosnip data-noalb>
       <label>Durée<input id="f_duration" placeholder="3:13"></label>
       <label class="file">🎵 WAV<input id="wav" type="file" accept=".wav,audio/*"></label>
     </div>
-    <span id="wavMsg" class="hint" data-nosnip></span>
+    <span id="wavMsg" class="hint" data-nosnip data-noalb></span>
     <label data-novid>Genre <small>(facultatif — vide = celui de la sortie copiée)</small><input id="f_genre" placeholder="ex. Hip Hop"></label>
-    <label data-nosnip class="chk"><input id="f_isrcAuto" type="checkbox" checked> ISRC à générer (3rd Party + Auto-Generate)</label>
+    <label data-nosnip data-noalb class="chk"><input id="f_isrcAuto" type="checkbox" checked> ISRC à générer (3rd Party + Auto-Generate)</label>
     <p class="hint" id="extra"></p>
   </section>
 

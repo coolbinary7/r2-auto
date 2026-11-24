@@ -6,6 +6,7 @@ const DEFAULTS = {
   configGroup: 'e-Product',
   configuration: 'eSingle Audio',
   snippetConfiguration: 'eSnippet Audio',
+  albumConfiguration: 'eAlbum Audio',
   mixGroup: 'Mastering Engineers',
   mixRole: 'Mastering Engineer',
   coverSize: '3000',
@@ -38,6 +39,8 @@ function readJob() {
     director: $('#f_videoDirector').value.trim(), videoProducer: $('#f_videoProducer').value.trim(),
     videoIsrc: $('#f_videoIsrc').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
     isrcAuto: $('#f_isrcAuto').checked,
+    tracks: $('#f_mode').value === 'album' ? currentTracks : undefined,
+    version: $('#f_mode').value === 'album' ? $('#f_albumVersion').value.trim() : undefined,
     toConfirm: currentConfirm,
     extra: currentExtra
   };
@@ -55,7 +58,9 @@ function showJob(j) {
   $('#f_mix').value = (j.mix || []).join('\n');
   $('#f_duration').value = j.duration || '';
   $('#f_genre').value = j.genre || '';
-  $('#f_mode').value = ['snippet', 'video'].includes(j.mode) ? j.mode : 'single';
+  $('#f_mode').value = ['snippet', 'video', 'album'].includes(j.mode) ? j.mode : 'single';
+  if (Array.isArray(j.tracks)) currentTracks = j.tracks;
+  $('#f_albumVersion').value = j.mode === 'album' ? (j.version || '') : '';
   $('#f_videoVersion').value = j.videoVersion || versionOfCat(j.videoCategory || 'Official Music Video'); $('#f_videoCategory').value = j.videoCategory || 'Official Music Video';
   $('#f_videoDuration').value = j.videoDuration || ''; $('#f_videoDirector').value = j.director || ''; $('#f_videoProducer').value = j.videoProducer || ''; $('#f_videoIsrc').value = j.videoIsrc || '';
   $('#f_snippets').value = (j.snippets || []).join('\n');
@@ -87,6 +92,12 @@ function showMode() {
   $('#isrcHint').textContent = vid ? '(obligatoire : la vidéo est copiée de cette piste et lui est associée)' : '(obligatoire : l’extension retrouve la piste dans R2 et reprend son titre tel quel ; c’est elle qui est dupliquée, avec son work)';
   document.querySelectorAll('[data-nosnip]').forEach(el => { el.hidden = snip || vid; });
   document.querySelectorAll('[data-novid]').forEach(el => { el.hidden = vid; });
+  const alb = m === 'album';
+  $('#albBox').hidden = !alb;
+  document.querySelectorAll('[data-noalb]').forEach(el => { el.hidden = el.hidden || alb; });
+  $('#titleLab').textContent = alb ? 'Titre de l’album' : 'Titre';
+  if (alb && !currentTracks.length) currentTracks.push({ title: '', version: '', artist: '', feats: [], writers: [], producers: [], mix: [], isrc: '', duration: '', genre: '' });
+  if (alb) setTimeout(drawTracks, 0);
   $('#vidGuide').hidden = !vid;
 }
 function versionOfCat(cat) { const c = (R2Parse.VIDEO_CATS || []).find(x => x[0] === cat); return c ? c[1] : (cat || 'Official Music Video'); }
@@ -112,6 +123,18 @@ function carnetGaps(job) {
   return miss.length ? ` — Pas de Party ID dans le carnet pour : ${miss.join(', ')} (Identify te demandera de choisir ; l’extension les retiendra).` : (names.filter(Boolean).length ? ' — Tout le monde est dans le carnet : main levée.' : '');
 }
 $('#parse').addEventListener('click', async () => {
+  const albumP = R2Parse.parseAlbum($('#mail').value);
+  if (albumP) {
+    const keep0 = readJob();
+    currentTracks = albumP.tracks;
+    const job = { ...keep0, mode: 'album', title: albumP.title, artist: albumP.artist, feats: albumP.feats, date: albumP.date, genre: albumP.genre || carnetGenre(albumP.artist),
+      version: albumP.version || '', writers: [], producers: [], mix: [], duration: '', isrcAuto: true, tracks: currentTracks, toConfirm: albumP.toConfirm, extra: { territory: albumP.territory, upc: albumP.upc, label: albumP.label, assets: albumP.assets } };
+    showJob(job); await save(); drawTracks();
+    const probs = R2Parse.albumProblems(job);
+    $('#parseMsg').style.color = probs.length ? 'var(--red)' : '';
+    $('#parseMsg').textContent = `Album « ${job.title || '?'} » : ${currentTracks.length} piste(s) reconnues dans l’ordre.` + (probs.length ? ` À corriger : ${probs.length} point(s), voir les pistes en rouge.` : ' Tout est prêt.') + carnetGaps({ ...job, mode: 'single', feats: currentTracks.flatMap(t => t.feats), writers: currentTracks.flatMap(t => t.writers), producers: currentTracks.flatMap(t => t.producers), mix: currentTracks.flatMap(t => t.mix) });
+    return;
+  }
   const p = R2Parse.parseMail($('#mail').value);
   const keep = readJob();
   const job = {
@@ -119,7 +142,7 @@ $('#parse').addEventListener('click', async () => {
     writers: p.writers, producers: p.producers || [], mix: p.mix,
     duration: keep.duration, // la durée vient du WAV, pas du mail
     genre: p.genre || carnetGenre(p.artist),
-    mode: (p.mode === 'video' || p.audioIsrc) ? 'video' : p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : (keep.mode === 'video' ? 'single' : keep.mode)), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
+    mode: p.mode === 'album' ? 'album' : (p.mode === 'video' || p.audioIsrc) ? 'video' : p.mode === 'snippet' ? 'snippet' : (p.mode ? 'single' : (keep.mode === 'video' ? 'single' : keep.mode)), snippets: (p.snippets && p.snippets.length) ? p.snippets : keep.snippets,
     srcIsrc: p.audioIsrc ? p.audioIsrc : (p.mode === 'snippet' && p.isrc) ? p.isrc : keep.srcIsrc,
     director: p.videoDirector || '', videoProducer: p.videoProducer || '', videoIsrc: p.videoIsrc || '',
     videoCategory: p.videoCategory || keep.videoCategory || 'Official Music Video', videoVersion: versionOfCat(p.videoCategory || keep.videoCategory || 'Official Music Video'),
@@ -135,7 +158,7 @@ $('#parse').addEventListener('click', async () => {
   if (job.mode === 'snippet' && !job.srcIsrc) missing.push('isrc');
   if (job.mode === 'snippet' && !(job.snippets || []).length) missing.push('snippets');
   if (!job.writers.length && !['snippet', 'video'].includes(job.mode)) missing.push('writers');
-  const notes = (p.notes || []).concat(p.mode === 'album' ? ['type « album » : pas encore automatisé, fais-le à la main'] : []);
+  const notes = (p.notes || []).concat(p.mode === 'album' ? ['type « album » sans sections « PISTE 01, 02… » : utilise le modèle album (Type de sortie : Album)'] : []);
   $('#parseMsg').style.color = missing.length ? 'var(--red)' : '';
   $('#parseMsg').textContent = (missing.length
     ? 'Pas trouvé : ' + missing.map(k => LABELS[k] || k).join(', ') + '. Complète à la main (ou demande un mail au format modèle).'
@@ -228,7 +251,10 @@ browser.storage.onChanged.addListener((ch) => { if (ch[STATE]) showState(ch[STAT
 async function sendCmd(name) {
   await save();
   const j = readJob();
-  if (j.mode === 'video') {
+  if (j.mode === 'album') {
+    const probs = R2Parse.albumProblems(j);
+    if (probs.length) { drawTracks(); $('#runMsg').textContent = 'Album pas prêt : ' + probs.map(p => (p.track ? 'piste ' + p.track + ' : ' : '') + p.msg).join(' ; ') + '.'; return; }
+  } else if (j.mode === 'video') {
     if (!/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(j.srcIsrc || '')) { $('#runMsg').textContent = 'Mode ISRC vidéo : indique l’ISRC de la piste audio (12 caractères).'; return; }
   } else if (j.mode === 'snippet') {
     if (!/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(j.srcIsrc || '')) { $('#runMsg').textContent = 'Mode Snippets : indique l’ISRC de la piste complète (12 caractères, ex. GB2DY2614066). Le titre sera repris de R2.'; return; }
@@ -282,3 +308,82 @@ $('#copyModel').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(MAIL_MODEL); $('#parseMsg').style.color = ''; $('#parseMsg').textContent = 'Modèle de mail copié : colle-le dans ton mail ou envoie-le aux labels.'; }
   catch (e) { $('#mail').value = MAIL_MODEL; $('#parseMsg').textContent = 'Modèle affiché ci-dessus : copie-le.'; }
 });
+
+// ---------- Modèle de mail selon le type (Album : une section par piste) ----------
+function currentModel() {
+  const t = $('#tplType').value;
+  if (t !== 'album') return { ok: true, text: MAIL_MODEL };
+  const n = Number($('#tplN').value);
+  if (!Number.isInteger(n) || n < 1) return { ok: false, msg: 'Nombre de titres invalide : mets un nombre entier, 1 ou plus.' };
+  return { ok: true, text: R2Parse.albumModel(n) };
+}
+function refreshModel() {
+  $('#tplNLab').hidden = $('#tplType').value !== 'album';
+  const m = currentModel();
+  $('#tplMsg').style.color = m.ok ? '' : 'var(--red)';
+  $('#tplMsg').textContent = m.ok ? '' : m.msg;
+  $('#tplPre').textContent = m.ok ? m.text : '';
+  $('#copyModel').disabled = !m.ok;
+}
+$('#tplType').addEventListener('change', refreshModel);
+$('#tplN').addEventListener('input', refreshModel);
+refreshModel();
+// remplace l'ancien bouton (le même modèle pour tous) : le modèle suit le type et le nombre de titres choisis
+$('#copyModel').replaceWith($('#copyModel').cloneNode(true));
+$('#copyModel').addEventListener('click', async () => {
+  const m = currentModel();
+  if (!m.ok) { refreshModel(); return; }
+  const what = $('#tplType').value === 'album' ? `Modèle album (${$('#tplN').value} titre(s))` : 'Modèle de mail';
+  try { await navigator.clipboard.writeText(m.text); $('#parseMsg').style.color = ''; $('#parseMsg').textContent = `${what} copié : colle-le dans ton mail ou envoie-le aux labels.`; }
+  catch (e) { $('#tplPrev') ; document.querySelector('.tplPrev').open = true; $('#parseMsg').textContent = 'Copie impossible ici : sélectionne le modèle dans « Voir le modèle ».'; }
+});
+
+// ---------- Album : liste des pistes ----------
+let currentTracks = [];
+const listOf = (v) => String(v || '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
+const TRK_FIELDS = [['title', 'Titre'], ['version', 'Version'], ['artist', 'Artiste (vide = album)'], ['feats', 'Featuring'], ['writers', 'Auteurs / compositeurs'], ['producers', 'Producteurs'], ['mix', 'Mix / Master'], ['isrc', 'ISRC (vide = généré)'], ['duration', 'Durée'], ['genre', 'Genre (vide = album)']];
+const LISTF = new Set(['feats', 'writers', 'producers', 'mix']);
+function fmtTotal(tr) {
+  const sec = tr.reduce((a, t) => { const m = String(t.duration || '').match(/(?:(\d+):)?(\d{1,2}):(\d{2})$/); return a + (m ? (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]) : 0); }, 0);
+  if (!sec) return '';
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s2 = sec % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0');
+}
+function drawTracks() {
+  const box = $('#tracks'); box.innerHTML = '';
+  const job = readJob();
+  const probs = R2Parse.albumProblems(job);
+  currentTracks.forEach((t, i) => {
+    const d = document.createElement('div');
+    const mine = probs.filter(p => p.track === i + 1);
+    d.className = 'trk' + (mine.length ? ' bad' : '');
+    d.innerHTML = `<div class="top"><b>${String(i + 1).padStart(2, '0')}</b><input data-k="title" placeholder="Titre"><button data-a="up" title="Monter">↑</button><button data-a="down" title="Descendre">↓</button><button data-a="copy" title="Recopier les crédits de la piste précédente">⤵</button><button data-a="del" title="Supprimer">✕</button></div>
+      <div class="grid">${TRK_FIELDS.slice(1).map(([k, l]) => `<label>${l}<input data-k="${k}"></label>`).join('')}<label class="file" style="margin-top:4px">🎵 WAV<input data-wav type="file" accept=".wav,audio/*"></label></div>
+      ${mine.length ? `<div class="e">${mine.map(p => p.msg).join(' · ')}</div>` : ''}`;
+    d.querySelectorAll('input[data-k]').forEach(inp => {
+      const k = inp.dataset.k;
+      inp.value = LISTF.has(k) ? (t[k] || []).join(', ') : (t[k] || '');
+      inp.addEventListener('change', () => { t[k] = LISTF.has(k) ? listOf(inp.value) : (k === 'isrc' ? inp.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : inp.value.trim()); save(); drawTracks(); });
+    });
+    d.querySelector('[data-wav]').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try { t.duration = R2Parse.fmtDuration(await R2Parse.wavDuration(f)); if (!t.title) t.title = f.name.replace(/\.[^.]+$/, ''); } catch (err) { alert('WAV illisible : ' + err.message); }
+      save(); drawTracks();
+    });
+    d.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => {
+      const a = b.dataset.a;
+      if (a === 'up' && i > 0) [currentTracks[i - 1], currentTracks[i]] = [currentTracks[i], currentTracks[i - 1]];
+      if (a === 'down' && i < currentTracks.length - 1) [currentTracks[i + 1], currentTracks[i]] = [currentTracks[i], currentTracks[i + 1]];
+      if (a === 'copy' && i > 0) { const p = currentTracks[i - 1]; for (const k of ['artist', 'feats', 'writers', 'producers', 'mix', 'genre']) t[k] = Array.isArray(p[k]) ? [...p[k]] : (p[k] || ''); }
+      if (a === 'del') { if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Sûr ?'; setTimeout(() => { b.dataset.armed = ''; b.textContent = '✕'; }, 3000); return; } currentTracks.splice(i, 1); }
+      save(); drawTracks();
+    }));
+    box.appendChild(d);
+  });
+  const total = fmtTotal(currentTracks);
+  const common = probs.filter(p => !p.track);
+  $('#albRecap').innerHTML = `<b>${esc2(job.title || 'Titre de l’album ?')}</b> — ${esc2(job.artist || 'artiste ?')} — ${job.date ? job.date.split('-').reverse().join('/') : 'date ?'}<br>${currentTracks.length} piste(s)${total ? ' · durée totale ' + total : ''}${job.genre ? ' · ' + esc2(job.genre) : ''}`
+    + (probs.length ? `<br><span class="err">À corriger avant de lancer : ${common.map(p => p.msg).concat(probs.filter(p => p.track).map(p => 'piste ' + p.track + ' : ' + p.msg)).join(' ; ')}</span>` : '<br>✓ Prêt à lancer');
+}
+function esc2(t) { return String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+$('#addTrack').addEventListener('click', () => { currentTracks.push({ title: '', version: '', artist: '', feats: [], writers: [], producers: [], mix: [], isrc: '', duration: '', genre: '' }); save(); drawTracks(); const ins = document.querySelectorAll('#tracks .trk input[data-k=title]'); if (ins.length) ins[ins.length - 1].focus(); });

@@ -68,9 +68,9 @@
       </div>
       <aside class="side">
         <div class="side-label">État du projet</div>
-        <div class="ver">Auto R2 0.8.0</div>
+        <div class="ver">Auto R2 0.9.0</div>
         <span class="state">En test</span>
-        <a class="btn p" href="./downloads/Auto-R2-0.8.0.zip" download>Télécharger Auto R2 0.8.0</a>
+        <a class="btn p" href="./downloads/Auto-R2-0.9.0.zip" download>Télécharger Auto R2 0.9.0</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Firefox-0.2.0.zip" download>Recorder 0.2.0 pour Firefox (R2)</a>
         <a class="btn s" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="./downloads/R2-Recorder-Chrome-0.2.0.zip">Recorder 0.2.0 pour Chrome (RWS, CWS, AIT)</a>
         <a class="btn" style="background:#fff;border:1px solid var(--line);color:var(--ink)" href="#tuto">▶ Voir le tuto vidéo (2 min)</a>
@@ -134,6 +134,7 @@ Assets : (lien)</pre>
       <ul>
         <li><b>Artiste principal</b> : un seul nom. Les invités vont dans <b>Featuring</b>.</li>
         <li><b>Auteurs</b> : obligatoires pour R2 (Prénom Nom).</li>
+        <li><b>Album / EP</b> : dans « 1. Colle le mail », choisis <b>Album</b> et le <b>nombre de titres</b>, puis « Copier le modèle de mail » : une partie commune (titre de l’album, artiste, date, genre, label…) puis une section <b>PISTE 01, PISTE 02…</b> par titre (titre, version, artiste, featuring, auteurs, producteurs, mix, ISRC fourni ou « à générer », durée). Avec le tableau modèle : une ligne par piste (colonnes « Projet (album / EP) » et « N° piste »). Après « Analyser », les pistes s’affichent dans l’ordre : tu peux en ajouter, en supprimer, les monter/descendre ou recopier les crédits de la piste précédente. Le lancement est bloqué tant qu’une piste n’a pas de titre ou de durée. Dans R2 : release en <b>eAlbum Audio</b>, une ressource par piste avec ses propres crédits, cover, puis rattachement dans l’ordre. « Reprendre » continue sans recréer ce qui existe.</li>
         <li><b>📒 Mon carnet (main levée)</b> : dans le panneau, ajoute tes artistes et contributeurs avec leur <b>Party ID</b> Identify (et un alias si tu les écris autrement, ex. « Natou »), leur projet R2 et leur genre. Avec la <b>main levée</b>, l’extension choisit seule la bonne fiche dans Identify : la saisie va de bout en bout sans pause. Quand tu choisis quelqu’un à la main, il est ajouté au carnet (« appris »). <b>Exporter</b> crée un fichier .json ; sur un autre PC, <b>Importer</b> ce fichier.</li>
         <li><b>Vidéo (clip)</b> : « Type de sortie : Vidéo », l’<b>ISRC audio à rattacher</b> et le <b>Video Director</b> et le <b>Video Producer</b> (souvent la même personne), la <b>Catégorie</b>. L’<b>ISRC vidéo</b> seulement si le partenaire l’a fourni, sinon il est généré. La version du titre suit la catégorie (Official Music Video par défaut), pas de cover. Ces champs restent vides pour une sortie audio.</li>
         <li><b>Snippet</b> : il ne faut que l’artiste principal, la date, l’<b>ISRC de la piste complète</b> (ligne « ISRC ») et les <b>durées des snippets</b>. Titre, auteurs et mix viennent de la piste complète.</li>
@@ -180,6 +181,7 @@ Assets : (lien)</pre>
           <tr><td>EP / single plusieurs titres</td><td>Une sortie de 2 à 6 titres, si la saisie diffère de celle d’un album (configuration, numérotation).</td><td><span class="tag todo">À fournir</span></td></tr>
           <tr><td>Album deluxe</td><td>Une version deluxe d’un album <b>déjà dans R2</b> : anciennes pistes réutilisées + nouvelles pistes ajoutées, version title, nouvelle cover.</td><td><span class="tag todo">À fournir</span></td></tr>
           <tr><td>Remix</td><td>Un remix d’un titre <b>déjà dans R2</b> : version title, remixeur, lien avec l’œuvre d’origine, ISRC.</td><td><span class="tag todo">À fournir</span></td></tr>
+          <tr><td>Album (eAlbum Audio)</td><td>Release album, une ressource par piste (ISRC fourni ou généré, durée, crédits par piste), cover, rattachement dans l’ordre.</td><td><span class="tag ok">Reçu · automatisé (0.9)</span></td></tr>
           <tr><td>ISRC vidéo (clip)</td><td>Ressource vidéo copiée d’une piste audio : ISRC auto, Assoc, Linked ISRCs, catégorie, réalisateur et producteur vidéo.</td><td><span class="tag ok">Reçu · automatisé (0.7.1)</span></td></tr>
           <tr><td>Snippet audio</td><td>Plusieurs extraits d’une piste déjà dans R2 (configuration eSnippet Audio), à partir de la dernière sortie snippet de l’artiste.</td><td><span class="tag ok">Reçu · automatisé (0.5)</span></td></tr>
           <tr><td>Nouvel artiste</td><td>Une première sortie pour un artiste <b>sans aucune sortie dans R2</b> (rien à copier) : création du projet si besoin, de la release et de la piste à partir de zéro.</td><td><span class="tag todo">À fournir</span></td></tr>
@@ -229,7 +231,7 @@ Assets : (lien)</pre>
       <p class="note">Si tu t’es trompé en cours de route, ce n’est pas grave : note-le dans ton message (« j’ai ouvert la copie par erreur vers la fin »), ça évite d’automatiser une erreur.</p>
     </div>
 
-    <footer>Outil interne non officiel · Auto R2 0.8.0 · Recorder 0.2.0 (Firefox et Chrome)</footer>
+    <footer>Outil interne non officiel · Auto R2 0.9.0 · Recorder 0.2.0 (Firefox et Chrome)</footer>
   </main>
   <script>document.querySelectorAll('.chaps button').forEach(b=>b.addEventListener('click',()=>{const v=b.closest('.tuto').querySelector('video');v.currentTime=+b.dataset.t;v.play();}));</script>
 <style>

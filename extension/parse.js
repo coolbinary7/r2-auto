@@ -30,6 +30,8 @@
   // Retire « (à confirmer) », « à confirmer », « TBC »…
   function clean(v) {
     const flagged = /a confirmer|a preciser|a definir|a venir|tbc|tbd|to be confirmed|\?\s*$/.test(norm(v));
+    // « (vidéo seulement) », « (vide = celui de l'album) », « (lien) » : consignes du modèle, pas des valeurs
+    if (/^\s*\([^)]*\)\s*$/.test(v)) return { value: '', flagged: false };
     const value = v.replace(/\(?\s*(à|a)\s+(confirmer|préciser|preciser|définir|definir|venir)\s*\)?/ig, '').replace(/\(?\s*(tbc|tbd|n\/a)\s*\)?/ig, '').replace(/\s+/g, ' ').trim();
     return { value, flagged };
   }
@@ -39,7 +41,11 @@
     .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&apos;|&#39;/g, "'");
 
   const KEYS = [
-    ['title', /^(titre|title|nom du titre|single|titre du son)$/],
+    ['albumTitle', /^(titre de l'?album|titre album|album|nom de l'?album|titre de l'?ep|projet( \(album ?\/ ?ep\))?|titre du projet)$/],
+    ['albumVersion', /^(version de l'?album|version album)$/],
+    ['trackNo', /^(n ?° ?(de )?piste|no (de )?piste|numero de piste|n piste|track ?(n ?°|no|number|#)|#)$/],
+    ['duration', /^(duree|duration|duree du titre|duree de la piste|temps)$/],
+    ['title', /^(titre|title|nom du titre|single|titre du son|titre de la piste)$/],
     ['artists', /^(artistes|artists|interpretes)$/],
     ['artist', /^(artiste principal|artiste|main artist|artist|artiste\(s\))$/],
     ['mode', /^(type de sortie|type|format|type de release)$/],
@@ -60,7 +66,7 @@
     ['isrc', /^(isrc)$/],
     ['upc', /^(upc|ean|code barre)$/],
     ['territory', /^(territoires?|territory|zone)$/],
-    ['assets', /^(assets|lien des assets|liens?|wav|fichiers)$/],
+    ['assets', /^(assets|lien des assets|lien des assets \(pochette\)|pochette|liens?|wav|fichiers|lien audio|asset audio|fichier audio|lien du fichier)$/],
     ['label', /^(label)$/],
     ['genre', /^(genre|genre musical|style)$/]
   ];
@@ -105,6 +111,11 @@
     } else if (field === 'isrc') {
       out.isrcAuto = /generer|generate|auto|a creer|nouveau/.test(norm(value)) || !/[A-Z]{2}[A-Z0-9]{3}\d{7}/i.test(value);
       const m = value.match(/[A-Z]{2}-?[A-Z0-9]{3}-?\d{2}-?\d{5}/i); if (m && !out.isrcAuto) out.isrc = m[0].replace(/-/g, '').toUpperCase();
+    } else if (field === 'duration') {
+      const m = value.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (m && !out.duration) out.duration = m[3] !== undefined ? `${+m[1]}:${m[2]}:${m[3]}` : `0:${pad(+m[1])}:${m[2]}`;
+    } else if (field === 'trackNo') {
+      const m = value.match(/\d+/); if (m && !out.trackNo) out.trackNo = +m[0];
     } else if (field === 'mode') {
       const v = norm(value);
       out.mode = /snippet|extrait/.test(v) ? 'snippet' : /video|clip/.test(v) ? 'video' : /album|ep\b|deluxe/.test(v) ? 'album' : 'single';
@@ -126,7 +137,7 @@
   }
 
   function parseMail(text) {
-    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', audioIsrc: '', videoIsrc: '', videoDirector: '', videoProducer: '', videoCategory: '', realisateur: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
+    const out = { snippets: [], title: '', artist: '', feats: [], artists: [], date: '', writers: [], mix: [], producers: [], isrcAuto: true, isrc: '', duration: '', albumTitle: '', albumVersion: '', trackNo: 0, audioIsrc: '', videoIsrc: '', videoDirector: '', videoProducer: '', videoCategory: '', realisateur: '', upc: '', territory: '', label: '', genre: '', version: '', mode: '', type: '', assets: '', toConfirm: [], notes: [] };
     // mise en forme ajoutée par Copilot / ChatGPT / Outlook : **gras**, __gras__, # titres, `code`
     text = decode(text).replace(/\*\*|__|`/g, '').replace(/^\s*#{1,6}\s*/gm, '').replace(/\u00a0/g, ' ');
     if (!parseTable(text, out)) {
@@ -187,12 +198,114 @@
       if (!out.audioIsrc && out.isrc && !out.videoIsrc) out.audioIsrc = out.isrc; // « ISRC : … » seul dans un mail vidéo = la piste audio
       if (!out.videoCategory && out.version) out.videoCategory = videoCategoryOf(out.version);
     } else if (out.realisateur) out.producers = uniq(out.producers.concat(splitNames(out.realisateur)));
-    if (!out.writers.length && out.mode !== 'video') out.toConfirm.push('writers');
+    if (out.mode === 'snippet' && !out.snippets.length && out.duration) out.snippets = [out.duration.replace(/^0:0?/, '')];
+    if (out.albumTitle && !out.mode) out.mode = 'album';
+    if (!out.writers.length && out.mode !== 'video' && out.mode !== 'album') out.toConfirm.push('writers');
     // « Artiste principal : DIBY PROD » alors que c'est le label
     const k2 = (x) => norm(x).replace(/[^a-z0-9]/g, '').replace(/prod(uction)?s?$/, '');
     if (out.artist && out.label && k2(out.artist) === k2(out.label)) { out.toConfirm.push('artist'); out.notes.push(`l’artiste principal « ${out.artist} » est le nom du label : mets le vrai artiste`); }
     out.toConfirm = [...new Set(out.toConfirm)];
     return out;
+  }
+
+  // ---------- Album : une release + une liste de pistes ----------
+  // Mail : informations communes, puis « PISTE 01 », « PISTE 02 »… (une section par piste, sans limite de nombre)
+  // Tableau : une ligne par piste (en-têtes + lignes), les colonnes communes sont lues sur la 1re ligne.
+  const TRACK_MARK = /^\s*(?:[-•*#]+\s*)?(?:piste|track|trk|titre|morceau)\s*(?:n\s*°|no\.?|#)?\s*0*(\d{1,3})\b\s*[:\-–.)]?\s*(.*)$/i;
+  const trackOf = (p, no, inline) => ({
+    no, title: p.title || inline || '', version: p.version || '', artist: p.artist || '', feats: p.feats || [],
+    writers: p.writers || [], producers: p.producers || [], mix: p.mix || [], genre: p.genre || '',
+    isrc: p.isrcAuto === false ? p.isrc : '', duration: p.duration || '', assets: p.assets || ''
+  });
+  function parseAlbum(text) {
+    const clean0 = decode(text).replace(/\*\*|__|`/g, '').replace(/\u00a0/g, ' ');
+    // tableau à plusieurs lignes
+    const rows = clean0.split(/\r?\n/).filter(l => l.includes('\t')).map(l => l.split('\t'));
+    const hi = rows.findIndex(r => r.filter(c => keyOf(c)).length >= 3);
+    if (hi >= 0 && rows.length - hi - 1 >= 2) {
+      const head = rows[hi].map(keyOf);
+      const data = rows.slice(hi + 1).filter(r => r.some(c => String(c).trim()));
+      const hasAlbumCol = head.includes('albumTitle') || head.includes('trackNo');
+      const firstMode = (() => { const i = head.indexOf('mode'); return i >= 0 ? norm(data[0][i] || '') : ''; })();
+      if (hasAlbumCol || /album|ep\b/.test(firstMode)) {
+        const tsv = (r) => rows[hi].join('\t') + '\n' + r.join('\t');
+        const common = parseMail(tsv(data[0]));
+        const tracks = data.map((r, i) => { const p = parseMail(tsv(r)); return trackOf(p, p.trackNo || i + 1, ''); }).sort((a, b) => a.no - b.no);
+        return finishAlbum(common, tracks);
+      }
+    }
+    const lines = clean0.split(/\r?\n/);
+    const marks = [];
+    lines.forEach((l, i) => { const m = l.replace(/^\s*#{1,6}\s*/, '').match(TRACK_MARK); if (m && !/[:：]/.test(l.split(m[1])[0])) marks.push({ i, no: +m[1], inline: (m[2] || '').replace(/^[:\-–\s]+/, '').trim() }); });
+    if (!marks.length) return null;
+    const common = parseMail(lines.slice(0, marks[0].i).join('\n'));
+    const tracks = marks.map((mk, k) => {
+      const body = lines.slice(mk.i + 1, k + 1 < marks.length ? marks[k + 1].i : lines.length).join('\n');
+      const p = parseMail(body);
+      const inline = keyOf((mk.inline.split(/[:：]/)[0] || '')) ? '' : mk.inline;
+      return trackOf(p, mk.no, inline);
+    });
+    return finishAlbum(common, tracks);
+  }
+  function finishAlbum(common, tracks) {
+    common.mode = 'album';
+    common.title = common.albumTitle || common.title;
+    common.version = common.albumVersion || (common.albumTitle ? '' : common.version);
+    common.tracks = tracks;
+    common.toConfirm = common.toConfirm.filter(k => k !== 'writers');
+    return common;
+  }
+  function albumProblems(job) {
+    const errs = [];
+    if (!job.title) errs.push({ track: 0, msg: 'titre de l’album manquant' });
+    if (!job.artist) errs.push({ track: 0, msg: 'artiste principal manquant' });
+    if (!job.date) errs.push({ track: 0, msg: 'date de sortie manquante' });
+    const tr = job.tracks || [];
+    if (!tr.length) errs.push({ track: 0, msg: 'aucune piste' });
+    const seen = new Set();
+    tr.forEach((t, i) => {
+      const n = i + 1;
+      if (!t.title) errs.push({ track: n, msg: 'titre manquant' });
+      if (!t.duration) errs.push({ track: n, msg: 'durée manquante' });
+      if (t.isrc && !/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(t.isrc)) errs.push({ track: n, msg: `ISRC « ${t.isrc} » invalide` });
+      if (t.isrc && seen.has(t.isrc)) errs.push({ track: n, msg: `ISRC ${t.isrc} déjà utilisé par une autre piste` });
+      if (t.isrc) seen.add(t.isrc);
+      const k = norm(t.title) + '|' + norm(t.version);
+      if (t.title && tr.findIndex(x => norm(x.title) + '|' + norm(x.version) === k) !== i) errs.push({ track: n, msg: 'même titre et version qu’une autre piste' });
+    });
+    return errs;
+  }
+  // Modèle de mail album : une section commune, puis une section par piste
+  function albumModel(n) {
+    const head = `MISE EN LIGNE – ARTISTE PRINCIPAL – TITRE DE L'ALBUM – SORTIE LE JJ/MM/AAAA
+
+Type de sortie : Album
+Date de sortie : JJ/MM/AAAA
+Artiste principal :
+Titre de l'album :
+Version de l'album :
+Genre :
+Label :
+Territoire : Monde
+UPC : à générer
+Pochette : (lien)
+`;
+    const piste = (k) => `
+PISTE ${String(k).padStart(2, '0')}
+Titre :
+Version :
+Artiste principal : (vide = celui de l'album)
+Featuring :
+Auteurs :
+Compositeurs :
+Producteurs :
+Mix / Master :
+Genre : (vide = celui de l'album)
+ISRC : à générer
+Durée : M:SS
+Lien audio :
+`;
+    return head + Array.from({ length: n }, (_, i) => piste(i + 1)).join('');
   }
 
   // Durée d'un WAV en secondes, lue dans l'en-tête (le fichier n'est jamais envoyé)
@@ -218,7 +331,7 @@
     return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
   };
 
-  const api = { VIDEO_CATS, videoCategoryOf, parseMail, parseDate, wavDuration, fmtDuration, splitNames };
+  const api = { VIDEO_CATS, videoCategoryOf, parseMail, parseAlbum, albumProblems, albumModel, parseDate, wavDuration, fmtDuration, splitNames };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.R2Parse = api;
 })(typeof window !== 'undefined' ? window : globalThis);
