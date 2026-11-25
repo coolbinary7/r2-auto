@@ -8,7 +8,7 @@
   if (window.__r2auto) return;
   window.__r2auto = true;
 
-  const VERSION = '0.9.0';
+  const VERSION = '0.9.1';
   const JOB = 'r2job', SET = 'r2settings', STATE = 'r2state', PROJ = 'r2projects', CMD = 'r2cmd';
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const norm = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`]/g, "'").toLowerCase().replace(/\s+/g, ' ').trim();
@@ -906,6 +906,8 @@
   // Piste : featurings (primary), voix, producteurs et mix/master (secondary) alignés sur la fiche ;
   // les lignes héritées de la piste copiée sont renommées (rôle et type gardés) ou retirées.
   async function syncTrackContributors(job, set) {
+    let C0 = null; try { C0 = await R2Carnet.load(); } catch (e) { /* rien */ }
+    const can = (n) => { const f = C0 && R2Carnet.findIn(C0, n); return norm(f ? f.name : n); };
     const feats = (job.feats || []).filter(Boolean);
     // 1. featurings en artiste principal
     for (const f of feats) {
@@ -921,20 +923,21 @@
     await waitFor(() => vis('img#img_secondary_contributors_add'), 8000);
     for (const g of groups) {
       const rowsOf = () => contribRows('editSecondaryContributor').map(secondaryInfo).filter(r => r.kind === g.kind);
-      const isWanted = (n) => g.want.some(w => norm(w) === norm(n));
+      const isWanted = (n) => g.want.some(w => can(w) === can(n));
       // a) lignes héritées → renommées vers les noms manquants, sinon retirées
       for (let guard = 0; guard < 10; guard++) {
         const rows = rowsOf();
         const stale = rows.find(r => r.name && !isWanted(r.name));
         if (!stale) break;
-        const missing = g.addMissing.filter(n => !rows.some(r => norm(r.name) === norm(n)));
+        const missing = g.addMissing.filter(n => !rows.some(r => can(r.name) === can(n)));
+        if (missing.length && can(missing[0]) === can(stale.name)) break; // même personne (alias) : rien à renommer
         if (missing.length) await addContributor('secondary', missing[0], null, null, { editRow: stale.tr, oldName: stale.name, credit: g.credit ? g.credit(missing[0]) : '' });
         else if (!await deleteSecondaryRow(stale.tr, `${g.label} hérité « ${stale.name} »`)) break;
         await sleep(500);
       }
       // b) noms encore absents → nouvelles lignes
       for (const n of g.addMissing) {
-        if (rowsOf().some(r => norm(r.name) === norm(n))) continue;
+        if (rowsOf().some(r => can(r.name) === can(n))) continue;
         await addContributor('secondary', n, g.group, g.role, { optional: true, roleLabel: `${g.group} / ${g.role}`, credit: g.credit ? g.credit(n) : '' });
       }
     }
@@ -1551,15 +1554,35 @@
       const t = tracks[k], tj = trackJob(job, t);
       const DJ = { ...D, job: tj };
       const lab = `${st}/${TOTAL} · Piste ${k + 1}/${N} « ${t.title} »`;
-      const mine = () => resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title)).filter(r => !(run.preIds || []).includes(r.id)).sort((a, b) => b.id - a.id)[0];
-      if (!run.preIds) { run.preIds = resourceList().map(r => r.id); await saveRun(run); }
+      // une piste que NOUS avons créée (copie faite lors de ce lancement ou d'un précédent)
+      const mine = () => run.tracks[k].created ? resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title)).sort((a, b) => b.id - a.id)[0] : null;
       const onIt = () => screen() === 'resourceAudio' && titleIs(t.title);
-      if (!run.tracks[k].created && !mine()) {
+      // piste déjà existante dans R2 (sortie en single, par ex.) : on la reprend telle quelle, on ne la recrée pas
+      if (!run.tracks[k].created) {
+        const want = String(t.isrc || '').toUpperCase();
+        let ex = null;
+        if (want) ex = await findResourceNode('', { cover: false, codes: [want], timeout: 8000 });
+        if (ex && String(ex.code).toUpperCase() !== want) ex = null;
+        if (!ex) {
+          await findResourceNode(t.title, { cover: false, timeout: 6000 });
+          const same = resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title) && (!t.version || norm(r.text).includes(norm(t.version))));
+          const created = new Set(run.tracks.filter(x => x.resCode).map(x => x.resCode));
+          ex = same.filter(r => !created.has(r.code)).sort((a, b) => b.id - a.id)[0] || null;
+        }
+        if (ex) {
+          run.tracks[k] = { existing: true, ok: true, isrc: ex.code, resCode: ex.code, resText: ex.text };
+          log(`piste ${k + 1} « ${t.title} » existe déjà dans R2 (${ex.text}) : reprise telle quelle dans l’album`);
+          notes.push(`piste ${k + 1} « ${t.title} » reprise d’une ressource existante (${ex.code}) : vérifie qu’il s’agit bien de la bonne version`);
+          await done(st);
+          continue;
+        }
+      }
+      if (!run.tracks[k].created) {
         say(`${lab} : copie…`);
         if (screen() !== 'copyResource') {
           // source : la piste précédente de l'album (déjà nettoyée), sinon une piste de la sortie copiée
           let node = null;
-          if (k > 0) { const pt = tracks[k - 1]; node = resourceList().filter(r => !r.cover && norm(r.title) === norm(pt.title)).sort((a, b) => b.id - a.id)[0] || null; }
+          for (let j = k - 1; j >= 0 && !node; j--) { if (!run.tracks[j] || run.tracks[j].existing) continue; const pt = tracks[j]; const c = run.tracks[j].resCode; node = (c && resourceList().find(r => r.code === c)) || resourceList().filter(r => !r.cover && norm(r.title) === norm(pt.title)).sort((a, b) => b.id - a.id)[0] || null; }
           if (!node) for (const tt of [...new Set([...(run.old || []), run.modelTitle].filter(Boolean))]) { node = await findResourceNode(tt, { codes: run.oldCodes || [], timeout: 20000 }); if (node) break; }
           if (node) {
             log(`piste ${k + 1} : copie de ${node.text}`);
@@ -1569,7 +1592,7 @@
           await until(() => screen() === 'copyResource', 500, `Fais clic droit → Copy sur une piste audio de l’artiste dans RESOURCES : je crée « ${t.title} » à partir d’elle.`);
         }
         await ACTIONS.copyResource(DJ, 'audio');
-        run.tracks[k].created = true; await saveRun(run);
+        run.tracks[k].created = true; run.tracks[k].copied = true; await saveRun(run);
       } else log(`piste ${k + 1} « ${t.title} » déjà créée : je la complète`);
       if (!onIt()) {
         const node = mine();
@@ -1577,9 +1600,18 @@
         await until(onIt, 60000, `Ouvre la piste « ${t.title} » (double-clic dans RESOURCES). Je continue dès qu’elle s’affiche.`);
       }
       await waitIdle();
+      // ressource verrouillée (déjà livrée) : on ne la modifie pas, elle est reprise telle quelle
+      const ti = $id('title');
+      if (ti && /viewOnlyInput/.test(ti.className) && !run.tracks[k].copied) {
+        const code = (($id('isrc_resource_id') || {}).value || '').toUpperCase();
+        run.tracks[k] = { existing: true, ok: true, isrc: code, resCode: code };
+        log(`piste ${k + 1} « ${t.title} » : ressource verrouillée (déjà livrée) → reprise telle quelle`);
+        await done(st); continue;
+      }
       say(`${lab} : ISRC, durée, crédits…`);
       await ACTIONS.resourceAudio(DJ);
       run.tracks[k].isrc = ($id('isrc_resource_id') && $id('isrc_resource_id').value) || t.isrc || '';
+      run.tracks[k].resCode = run.tracks[k].isrc;
       run.tracks[k].ok = true;
       await done(st);
     }
@@ -1618,7 +1650,10 @@
         const has = () => readTracks(t.title).some(x => norm(x.title) === norm(t.title));
         if (has()) { log(`piste ${k + 1} déjà rattachée`); continue; }
         say(`${TOTAL}/${TOTAL} · Rattachement piste ${k + 1}/${N} « ${t.title} »…`);
-        const node = resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title)).sort((a, b) => b.id - a.id)[0];
+        const code = run.tracks[k] && run.tracks[k].resCode;
+        let node = code ? resourceList().find(r => !r.cover && String(r.code).toUpperCase() === String(code).toUpperCase()) : null;
+        if (!node && code) node = await findResourceNode('', { cover: false, codes: [code], timeout: 8000 });
+        if (!node) node = resourceList().filter(r => !r.cover && norm(r.title) === norm(t.title)).sort((a, b) => b.id - a.id)[0];
         const manual = `Glisse la piste « ${node ? node.text : t.title} » depuis RESOURCES jusque dans la grille des pistes (en position ${k + 1}). Je continue dès qu’elle y est.`;
         if (node) await dropInto(node, () => dropTarget(tracksBox()), has, 'piste ' + (k + 1), manual); else await until(has, 500, manual);
         await sleep(500);
@@ -1641,7 +1676,7 @@
       await done(N + 5);
     }
     await rememberProject(job);
-    const res = tracks.map((t, k) => `${k + 1}. ${t.title}${run.tracks[k] && run.tracks[k].isrc ? ' (' + run.tracks[k].isrc + ')' : ''}`).join(' · ');
+    const res = tracks.map((t, k) => `${k + 1}. ${t.title}${run.tracks[k] && run.tracks[k].isrc ? ' (' + run.tracks[k].isrc + (run.tracks[k].existing ? ', existante' : '') + ')' : ''}`).join(' · ');
     const extra = notes.length ? ' À vérifier : ' + notes.map(n => '« ' + n.slice(0, 120) + ' »').join(' ; ') + '.' : '';
     return `Terminé ✓ album « ${job.title} » : ${N} piste(s) créées et rattachées dans l’ordre — ${res}. Cover rattachée.${extra} Vérifie, puis fais toi-même le Submit Release.`;
   }
@@ -1659,6 +1694,10 @@
       const canon = (n) => { const f = R2Carnet.findIn(c, n); return f ? f.name : n; };
       for (const k of ['feats', 'writers', 'producers', 'mix']) if (Array.isArray(job[k])) job[k] = [...new Set(job[k].map(canon))];
       for (const k of ['director', 'videoProducer']) if (job[k]) job[k] = canon(job[k]);
+      for (const t of (job.tracks || [])) {
+        for (const k of ['feats', 'writers', 'producers', 'mix']) if (Array.isArray(t[k])) t[k] = [...new Set(t[k].map(canon))];
+        if (t.artist) t.artist = canon(t.artist);
+      }
       const fa = R2Carnet.findIn(c, job.artist);
       if (fa && !job.genre && fa.genre) job.genre = fa.genre;
       if (!job.genre && c.defaults.genre) job.genre = c.defaults.genre;
